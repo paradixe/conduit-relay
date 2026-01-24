@@ -40,17 +40,12 @@ Dashboard auto-generates config from your fleet and prints the SSH key to distri
 
 ---
 
-## ریلی کاندویت
+## فارسی
 
-ریلی داوطلبانه برای [سایفون](https://psiphon.ca). ترافیک کاربران در مناطق سانسور شده را از طریق WebRTC هدایت می‌کند.
+یه VPS بگیر، این رو بزن:
 
 ```bash
 curl -sL https://raw.githubusercontent.com/paradixe/conduit-relay/main/install.sh | sudo bash
 ```
 
-```bash
-systemctl status conduit      # وضعیت
-journalctl -u conduit -f      # لاگ
-sudo ./update.sh              # آپدیت
-sudo ./uninstall.sh           # حذف
-```
+تمام. سرورت الان داره به مردم کمک میکنه فیلترشکن داشته باشن.
