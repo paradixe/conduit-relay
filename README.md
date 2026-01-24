@@ -6,6 +6,8 @@ Volunteer relay for [Psiphon](https://psiphon.ca). Routes traffic for users in c
 **Bandwidth:** 50-200 GB/day depending on demand
 **Default:** 200 max clients (override: `curl ... | MAX_CLIENTS=500 bash`)
 
+**New?** Check the [step-by-step setup guide](SETUP.md) (English + فارسی)
+
 ---
 
 ## Single Server
