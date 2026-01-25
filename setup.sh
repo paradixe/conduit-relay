@@ -47,7 +47,7 @@ if [ "$DASHBOARD_ONLY" != "1" ]; then
   echo -e "  ${BOLD}Y${NC} = Yes, this is a VPS I want to use as a relay"
   echo -e "  ${BOLD}N${NC} = No, just the dashboard (e.g., running on laptop)"
   echo ""
-  read -r -p "Install relay? [Y/n]: " INSTALL_RELAY
+  read -r -p "Install relay? [Y/n]: " INSTALL_RELAY < /dev/tty
   if [[ "$INSTALL_RELAY" =~ ^[Nn]$ ]]; then
     DASHBOARD_ONLY=1
   fi
@@ -209,7 +209,7 @@ echo ""
 echo -e "${YELLOW}[6/6] Domain Setup (optional)${NC}"
 echo -e "  If you have a domain pointing to this server, we can set up HTTPS."
 echo -e "  ${CYAN}Press Enter to skip, or type your domain:${NC}"
-read -r DOMAIN
+read -r DOMAIN < /dev/tty
 
 DASHBOARD_URL="http://$PUBLIC_IP:$PORT"
 
