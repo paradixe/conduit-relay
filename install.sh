@@ -6,6 +6,10 @@ INSTALL_DIR="/usr/local/bin"
 DATA_DIR="/var/lib/conduit"
 SERVICE_FILE="/etc/systemd/system/conduit.service"
 
+# Install geoip-bin for dashboard geo stats
+echo "Installing dependencies..."
+apt-get update -qq && apt-get install -y -qq geoip-bin >/dev/null 2>&1 || true
+
 # Get latest release
 echo "Fetching latest release..."
 LATEST=$(curl -s "https://api.github.com/repos/$REPO/releases/latest" | grep -oP '"tag_name": "\K[^"]+')

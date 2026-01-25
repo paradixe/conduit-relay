@@ -66,6 +66,18 @@ async function initDb() {
   `);
   db.run(`CREATE INDEX IF NOT EXISTS idx_stats_timestamp ON stats(timestamp)`);
   db.run(`CREATE INDEX IF NOT EXISTS idx_stats_server ON stats(server)`);
+  // Geo stats table for country breakdown
+  db.run(`
+    CREATE TABLE IF NOT EXISTS geo_stats (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      timestamp INTEGER NOT NULL,
+      server TEXT NOT NULL,
+      country_code TEXT NOT NULL,
+      country_name TEXT NOT NULL,
+      count INTEGER DEFAULT 0
+    )
+  `);
+  db.run(`CREATE INDEX IF NOT EXISTS idx_geo_timestamp ON geo_stats(timestamp)`);
   saveDb();
 }
 
@@ -218,6 +230,84 @@ function saveStats(stats) {
   saveDb();
 }
 
+// Normalize country names from geoiplookup output
+function normalizeCountryName(name) {
+  const mapping = {
+    'Iran, Islamic Republic of': 'Iran',
+    'Korea, Republic of': 'South Korea',
+    "Korea, Democratic People's Republic of": 'North Korea',
+    'Russian Federation': 'Russia',
+    'United Kingdom': 'UK',
+    'United Arab Emirates': 'UAE',
+    'Viet Nam': 'Vietnam',
+    'Taiwan, Province of China': 'Taiwan',
+    'Hong Kong': 'Hong Kong',
+    'Syrian Arab Republic': 'Syria',
+    'Venezuela, Bolivarian Republic of': 'Venezuela',
+    'Tanzania, United Republic of': 'Tanzania',
+    'Moldova, Republic of': 'Moldova',
+    'Macedonia, the Former Yugoslav Republic of': 'Macedonia',
+    'Lao People\'s Democratic Republic': 'Laos',
+    'Libyan Arab Jamahiriya': 'Libya',
+    'Palestinian Territory, Occupied': 'Palestine',
+    'Congo, The Democratic Republic of the': 'DR Congo',
+  };
+  return mapping[name] || name;
+}
+
+// Fetch geo stats from a single server via tcpdump + geoiplookup
+async function fetchGeoStats(server) {
+  try {
+    // Capture unique IPs, look up countries, count occurrences
+    // tcpdump output: "timestamp eth0 In IP src_ip.port > dst_ip.port: ..." - IP is field 5
+    const cmd = `timeout 30 tcpdump -ni any 'inbound and (tcp or udp)' -c 500 2>/dev/null | awk '{print $5}' | cut -d. -f1-4 | grep -E '^[0-9]+\\.' | sort -u | xargs -n1 geoiplookup 2>/dev/null | grep -v 'not found' | awk -F': ' '{print $2}' | sort | uniq -c | sort -rn`;
+    const output = await sshExec(server, cmd);
+    const results = [];
+    // Parse output: "  176 IR, Iran, Islamic Republic of"
+    for (const line of output.split('\n')) {
+      const match = line.trim().match(/^(\d+)\s+([A-Z]{2}),\s*(.+)$/);
+      if (match) {
+        results.push({
+          count: parseInt(match[1], 10),
+          country_code: match[2],
+          country_name: normalizeCountryName(match[3].trim()),
+        });
+      }
+    }
+    return { server: server.name, results };
+  } catch (err) {
+    console.error(`[GEO] Failed to fetch from ${server.name}:`, err.message);
+    return { server: server.name, results: [], error: err.message };
+  }
+}
+
+// Fetch geo stats from all servers and store aggregated snapshot
+async function fetchAllGeoStats() {
+  const timestamp = Date.now();
+  const allResults = await Promise.all(SERVERS.map(fetchGeoStats));
+
+  // Aggregate by country across all servers
+  const countryTotals = {};
+  for (const { results } of allResults) {
+    for (const { country_code, country_name, count } of results) {
+      if (!countryTotals[country_code]) {
+        countryTotals[country_code] = { country_name, count: 0 };
+      }
+      countryTotals[country_code].count += count;
+    }
+  }
+
+  // Store snapshot per server
+  for (const { server, results } of allResults) {
+    for (const { country_code, country_name, count } of results) {
+      db.run(`INSERT INTO geo_stats (timestamp, server, country_code, country_name, count) VALUES (?, ?, ?, ?, ?)`,
+        [timestamp, server, country_code, country_name, count]);
+    }
+  }
+  saveDb();
+  console.log(`[GEO] Captured ${Object.keys(countryTotals).length} countries from ${allResults.filter(r => r.results.length > 0).length}/${SERVERS.length} servers`);
+}
+
 // Batched fetching
 const BATCH_SIZE = 3;
 const BATCH_DELAY = 500;
@@ -368,6 +458,23 @@ app.get('/api/bandwidth', requireAuth, (_, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+app.get('/api/geo', requireAuth, (req, res) => {
+  try {
+    const hours = parseInt(req.query.hours) || 24;
+    const since = Date.now() - (hours * 3600000);
+    // Aggregate counts by country across time range
+    const stmt = db.prepare(`SELECT country_code, country_name, SUM(count) as total FROM geo_stats WHERE timestamp > ? GROUP BY country_code ORDER BY total DESC`);
+    stmt.bind([since]);
+    const rows = [];
+    while (stmt.step()) {
+      const row = stmt.getAsObject();
+      rows.push({ country_code: row.country_code, country_name: row.country_name, count: row.total });
+    }
+    stmt.free();
+    res.json(rows);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.post('/api/control/:action', requireAuth, async (req, res) => {
   const { action } = req.params;
   if (!['stop', 'start', 'restart'].includes(action)) return res.status(400).json({ error: 'Invalid action' });
@@ -419,12 +526,19 @@ async function checkBandwidthLimits() {
   }
 }
 
-// Background polling
+// Background polling for stats (every 30s)
 setInterval(async () => {
   try { await fetchAllStats(); await checkBandwidthLimits(); } catch (e) { console.error('Background poll failed:', e); }
 }, 30000);
 
+// Background polling for geo stats (every 5 minutes)
+setInterval(async () => {
+  try { await fetchAllGeoStats(); } catch (e) { console.error('Geo poll failed:', e); }
+}, 300000);
+
 // Start
 initDb().then(() => {
   app.listen(PORT, () => console.log(`Dashboard running on http://localhost:${PORT}`));
+  // Initial geo fetch after startup
+  setTimeout(() => fetchAllGeoStats().catch(e => console.error('Initial geo fetch failed:', e)), 5000);
 }).catch(e => { console.error(e); process.exit(1); });
