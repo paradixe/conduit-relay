@@ -13,9 +13,8 @@
 - 1 CPU
 - اوبونتو 22.04
 - ماهی 3-10 ترابایت ترافیک
-- Ubuntu 22/24 پیشناهاد
 
-**نکته:** سرورای ارزون معمولاً ماهی $3-51 هستن. GeorgeDataCenter , RackNerd و خوبن.
+**نکته:** سرورای ارزون معمولاً ماهی $3-5 هستن. GeorgeDataCenter, RackNerd خوبن.
 
 بعد خرید یه ایمیل میاد با:
 - IP سرور (مثلاً `123.45.67.89`)
@@ -39,114 +38,83 @@ Are you sure you want to continue connecting (yes/no)?
 بعد پسورد رو بزن (تایپ میکنی ولی چیزی نشون نمیده، نترس).
 
 **ویندوز:**
-[PuTTY](https://putty.org) رو دانلود کن، IP رو بزن، وصل شو. همون سوال fingerprint رو میپرسه، Yes بزن.
-
+[PuTTY](https://putty.org) رو دانلود کن، IP رو بزن، وصل شو.
 
 ---
 
-## ۳. نصب ریلی
+## ۳. نصب (یه دستور)
 
 این رو کپی پیست کن:
 ```bash
-curl -sL https://raw.githubusercontent.com/paradixe/conduit-relay/main/install.sh | bash
+curl -sL https://raw.githubusercontent.com/paradixe/conduit-relay/main/setup.sh | bash
 ```
 
-تمام. ریلی داره کار میکنه.
+صبر کن تا تموم بشه. آخرش یه چیزی مثل این میبینی:
 
-**تنظیمات:**
-- `-m` تعداد کلاینت (پیش‌فرض: 200)
-- `-b` محدودیت سرعت به Mbps (پیش‌فرض: -1 = نامحدود)
+```
+════════════════════════════════════════════════════════════
+                    Setup Complete!
+════════════════════════════════════════════════════════════
 
-مثلاً با 500 کلاینت و 100 مگابیت:
-```bash
-curl -sL https://raw.githubusercontent.com/paradixe/conduit-relay/main/install.sh | MAX_CLIENTS=500 BANDWIDTH=100 bash
+  Dashboard:  http://123.45.67.89:3000
+  Password:   ABC123xyz
+
+  Save this password! It won't be shown again.
+
+════════════════════════════════════════════════════════════
+  To add other servers, run this on each:
+
+  curl -sL "http://123.45.67.89:3000/join/abc123..." | bash
+
+════════════════════════════════════════════════════════════
 ```
 
-چک کن درست کار میکنه:
-```bash
-journalctl -u conduit -f
-```
-باید یه چیزی مثل این ببینی:
-```
-[STATS] Connected: 45 | Up: 2.3 GB | Down: 18.7 GB
-```
+**مهم:** پسورد رو یه جا ذخیره کن!
 
 ---
 
-## ۴. داشبورد (اختیاری)
+## ۴. داشبورد
 
-میخوای یه صفحه وب داشته باشی که وضعیت سرورت رو ببینی؟
-
-```bash
-# اول Node.js نصب کن
-curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
-apt install -y nodejs
-
-# داشبورد رو بگیر
-cd /opt
-git clone https://github.com/paradixe/conduit-relay.git conduit-dashboard
-cd conduit-dashboard/dashboard
-
-# تنظیمات
-cp .env.example .env
-nano .env
+برو توی مرورگر:
+```
+http://123.45.67.89:3000
 ```
 
-تو فایل `.env`:
-```
-DASHBOARD_PASSWORD=یه‌پسورد‌قوی
-```
-
-سرورها رو تو `servers.json` بذار:
-```json
-[
-  { "name": "server1", "host": "123.45.67.89", "user": "root" }
-]
-```
-
-```bash
-npm install
-npm start
-```
-
-برو `http://123.45.67.89:3000` ببین.
+پسورد رو بزن. تمام! حالا وضعیت سرورت رو میبینی.
 
 ---
 
-## ۵. چند سرور داری؟
+## ۵. سرور دیگه اضافه کردن
 
-اگه بیشتر از یه سرور داری، از لپتاپت مدیریتشون کن.
+اگه چند سرور داری، کارت خیلی راحته:
 
-### SSH Key بساز (یه بار از لپتاپت)
+۱. SSH بزن به سرور جدید
+۲. اون دستور `curl ... /join/...` که بعد نصب دیدی رو بزن
+۳. تمام! خودکار وصل میشه به داشبورد
+
+هر چند تا سرور که داشته باشی، همین دستور رو روشون بزن. خودشون نصب میشن و وصل میشن.
+
+---
+
+## تنظیمات پیشرفته
+
+اگه میخوای تعداد کلاینت یا پهنای باند رو تغییر بدی:
+
 ```bash
-mkdir -p ~/.ssh && ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -N ""
-```
-این یه کلید میسازه بدون پسورد.
-
-### کلید رو ببین
-```bash
-cat ~/.ssh/id_ed25519.pub
-```
-این رو کپی کن.
-
-### کلید رو به سرور بده
-SSH بزن به سرور، بعد:
-```bash
-mkdir -p ~/.ssh && chmod 700 ~/.ssh && echo "اینجا کلید رو پیست کن" >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys
+curl -sL https://raw.githubusercontent.com/paradixe/conduit-relay/main/setup.sh | MAX_CLIENTS=500 BANDWIDTH=100 bash
 ```
 
-یا اگه `ssh-copy-id` داری (راحت‌تره):
-```bash
-ssh-copy-id root@123.45.67.89
-```
+- `MAX_CLIENTS`: حداکثر کلاینت همزمان (پیش‌فرض: 200)
+- `BANDWIDTH`: محدودیت سرعت به Mbps (پیش‌فرض: -1 = نامحدود)
 
-### fleet.sh استفاده کن
-```bash
-./fleet.sh add server1 123.45.67.89
-./fleet.sh add server2 111.22.33.44
-./fleet.sh status
-./fleet.sh update all
-```
+**از داشبورد:**
+- روی هر سرور دکمه Edit بزن
+- محدودیت ماهانه (TB) بذار - اتوماتیک وقتی رسید خاموش میشه
+- اسم سرور رو عوض کن
+- سرور رو حذف کن
+
+**آپدیت:**
+از Settings داشبورد، دکمه Update Dashboard بزن. همه چیز آپدیت میشه.
 
 ---
 
@@ -175,105 +143,53 @@ You'll get an email with your server IP and root password.
 ssh root@YOUR_IP
 ```
 
-First time it asks:
-```
-Are you sure you want to continue connecting (yes/no)?
-```
-Type `yes`, enter.
+First time it asks about fingerprint - type `yes`, enter. Then paste password.
 
-Then paste your password (nothing shows when you type, that's normal).
+**Windows:** Use [PuTTY](https://putty.org).
 
-**Windows:** Use [PuTTY](https://putty.org). Same fingerprint question, click Yes.
-
-## 3. Install
+## 3. Install (One Command)
 
 ```bash
-curl -sL https://raw.githubusercontent.com/paradixe/conduit-relay/main/install.sh | bash
+curl -sL https://raw.githubusercontent.com/paradixe/conduit-relay/main/setup.sh | bash
 ```
 
-Done.
+After it finishes you'll see:
+- **Dashboard URL** - Open in browser
+- **Password** - Save it!
+- **Join command** - For adding other servers
 
-**Configuration options:**
-- `-m` max clients (default: 200)
-- `-b` bandwidth limit in Mbps (default: -1 = unlimited)
+## 4. Dashboard
 
-Custom install with 500 clients and 100 Mbps limit:
+Open the dashboard URL in your browser, enter the password. Done!
+
+## 5. Adding More Servers
+
+Have multiple servers? Easy:
+
+1. SSH into the new server
+2. Run the join command that was shown after setup
+3. Done - it auto-connects to your dashboard
+
+Run the same join command on any server to add it.
+
+## Advanced Config
+
+Custom client/bandwidth limits:
 ```bash
-curl -sL https://raw.githubusercontent.com/paradixe/conduit-relay/main/install.sh | MAX_CLIENTS=500 BANDWIDTH=100 bash
+curl -sL https://raw.githubusercontent.com/paradixe/conduit-relay/main/setup.sh | MAX_CLIENTS=500 BANDWIDTH=100 bash
 ```
 
-Check it's running:
-```bash
-journalctl -u conduit -f
-```
+- `MAX_CLIENTS`: Max concurrent clients (default: 200)
+- `BANDWIDTH`: Speed limit in Mbps (default: -1 = unlimited)
 
-You should see stats like:
-```
-[STATS] Connected: 45 | Up: 2.3 GB | Down: 18.7 GB
-```
+**From the dashboard:**
+- Click Edit on any server
+- Set monthly bandwidth limit (TB) - auto-stops when exceeded
+- Rename servers
+- Delete servers from monitoring
 
-## 4. Dashboard (optional)
-
-Want a web UI to monitor your server?
-
-```bash
-curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
-apt install -y nodejs
-
-cd /opt
-git clone https://github.com/paradixe/conduit-relay.git conduit-dashboard
-cd conduit-dashboard/dashboard
-
-cp .env.example .env
-nano .env  # set DASHBOARD_PASSWORD
-```
-
-Create `servers.json`:
-```json
-[
-  { "name": "server1", "host": "YOUR_IP", "user": "root" }
-]
-```
-
-```bash
-npm install
-npm start
-```
-
-Hit `http://YOUR_IP:3000`.
-
-## 5. Multiple servers?
-
-Set up SSH keys so you don't need passwords.
-
-**On your laptop (once):**
-```bash
-mkdir -p ~/.ssh && ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -N ""
-```
-
-**See your public key:**
-```bash
-cat ~/.ssh/id_ed25519.pub
-```
-Copy this.
-
-**Add it to your server** (SSH in first, then):
-```bash
-mkdir -p ~/.ssh && chmod 700 ~/.ssh && echo "PASTE_YOUR_KEY_HERE" >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys
-```
-
-Or if you have `ssh-copy-id` (easier):
-```bash
-ssh-copy-id root@SERVER1_IP
-```
-
-Then use fleet.sh:
-```bash
-./fleet.sh add server1 1.2.3.4
-./fleet.sh add server2 5.6.7.8
-./fleet.sh status
-./fleet.sh update all
-```
+**Updates:**
+Settings > Update Dashboard. Updates everything in one click.
 
 ## Help
 

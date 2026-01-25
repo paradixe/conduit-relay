@@ -13,12 +13,18 @@ const PORT = process.env.PORT || 3000;
 const PASSWORD = process.env.DASHBOARD_PASSWORD || 'changeme';
 const SSH_KEY_PATH = process.env.SSH_KEY_PATH || join(process.env.HOME, '.ssh/id_ed25519');
 const DB_PATH = join(__dirname, 'stats.db');
+const JOIN_TOKEN = process.env.JOIN_TOKEN || null;
+const SERVERS_PATH = join(__dirname, 'servers.json');
 
 // Load servers from config file or environment
 function loadServers() {
-  const configPath = join(__dirname, 'servers.json');
-  if (existsSync(configPath)) {
-    return JSON.parse(readFileSync(configPath, 'utf8'));
+  if (existsSync(SERVERS_PATH)) {
+    try {
+      const servers = JSON.parse(readFileSync(SERVERS_PATH, 'utf8'));
+      if (Array.isArray(servers)) return servers;
+    } catch (e) {
+      console.error('Failed to parse servers.json:', e.message);
+    }
   }
   if (process.env.SERVERS) {
     return process.env.SERVERS.split(',').map(s => {
@@ -26,11 +32,18 @@ function loadServers() {
       return { name, host, user, bandwidthLimit: parseFloat(limitTB || 10) * 1024 ** 4 };
     });
   }
-  console.error('No servers configured. Create servers.json or set SERVERS env var.');
-  process.exit(1);
+  // Return empty array - wizard will handle setup
+  console.log('No servers configured. Setup wizard will guide you.');
+  return [];
 }
 
-const SERVERS = loadServers();
+// Save servers to config file
+function saveServers() {
+  writeFileSync(SERVERS_PATH, JSON.stringify(SERVERS, null, 2));
+  console.log(`[CONFIG] Saved ${SERVERS.length} servers`);
+}
+
+let SERVERS = loadServers();
 
 // Initialize SQLite database
 let db;
@@ -131,6 +144,8 @@ function getPooledConnection(server) {
       readyTimeout: 15000,
       keepaliveInterval: SSH_KEEPALIVE_INTERVAL,
       keepaliveCountMax: SSH_KEEPALIVE_COUNT_MAX,
+      // Skip host key verification for auto-registered servers
+      hostVerifier: () => true,
     });
   });
 }
@@ -481,6 +496,320 @@ app.get('/api/geo', requireAuth, (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ═══════════════════════════════════════════════════════════════════
+// JOIN FLOW - Zero-friction server registration
+// ═══════════════════════════════════════════════════════════════════
+
+// GET /join/:token - Returns bash script for auto-registration
+app.get('/join/:token', (req, res) => {
+  if (!JOIN_TOKEN || req.params.token !== JOIN_TOKEN) {
+    return res.status(403).type('text/plain').send('echo "Invalid or expired join token"');
+  }
+
+  let sshPubKey = '';
+  try {
+    sshPubKey = readFileSync(SSH_KEY_PATH + '.pub', 'utf8').trim();
+  } catch (e) {
+    return res.status(500).type('text/plain').send('echo "Dashboard SSH key not found"');
+  }
+
+  const dashboardHost = req.headers.host?.split(':')[0] || req.hostname;
+  const dashboardPort = PORT;
+
+  const script = `#!/bin/bash
+set -e
+echo ""
+echo "╔═══════════════════════════════════════════════╗"
+echo "║     Connecting to Conduit Dashboard           ║"
+echo "╚═══════════════════════════════════════════════╝"
+echo ""
+
+# Add dashboard SSH key
+echo "[1/3] Adding SSH key..."
+mkdir -p ~/.ssh && chmod 700 ~/.ssh
+if grep -qF "${sshPubKey}" ~/.ssh/authorized_keys 2>/dev/null; then
+  echo "  SSH key already present"
+else
+  echo "${sshPubKey}" >> ~/.ssh/authorized_keys
+  chmod 600 ~/.ssh/authorized_keys
+  echo "  SSH key added"
+fi
+
+# Install conduit relay if not present
+echo "[2/3] Checking Conduit Relay..."
+if command -v conduit &>/dev/null || [ -f /usr/local/bin/conduit ]; then
+  echo "  Conduit already installed: $(/usr/local/bin/conduit --version 2>/dev/null || echo 'unknown')"
+else
+  echo "  Installing Conduit Relay..."
+  curl -sL "https://raw.githubusercontent.com/paradixe/conduit-relay/main/install.sh" | bash
+fi
+
+# Register with dashboard
+echo "[3/3] Registering with dashboard..."
+HOSTNAME=$(hostname | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | cut -c1-20)
+[ -z "$HOSTNAME" ] && HOSTNAME="server"
+IP=$(curl -4 -s --connect-timeout 5 ifconfig.me 2>/dev/null || curl -4 -s --connect-timeout 5 icanhazip.com 2>/dev/null || hostname -I | awk '{print $1}')
+
+RESULT=$(curl -sX POST "http://${dashboardHost}:${dashboardPort}/api/register" \\
+  -H "Content-Type: application/json" \\
+  -H "X-Join-Token: ${JOIN_TOKEN}" \\
+  -d "{\\"name\\":\\"$HOSTNAME\\",\\"host\\":\\"$IP\\",\\"user\\":\\"root\\"}" 2>/dev/null)
+
+if echo "$RESULT" | grep -q '"success":true'; then
+  echo ""
+  echo "════════════════════════════════════════════════"
+  echo "  Connected to dashboard!"
+  echo "  Name: $HOSTNAME"
+  echo "  IP:   $IP"
+  echo "  View: http://${dashboardHost}:${dashboardPort}"
+  echo "════════════════════════════════════════════════"
+  echo ""
+else
+  echo "  Warning: Registration may have failed"
+  echo "  Response: $RESULT"
+  echo "  Server will still be monitored if SSH key was added correctly"
+fi
+`;
+
+  res.type('text/plain').send(script);
+});
+
+// POST /api/register - Called by join script to self-register
+app.post('/api/register', (req, res) => {
+  const token = req.headers['x-join-token'];
+  if (!JOIN_TOKEN || token !== JOIN_TOKEN) {
+    return res.status(403).json({ error: 'Invalid token' });
+  }
+
+  const { name, host, user } = req.body;
+  if (!name || !host) {
+    return res.status(400).json({ error: 'Name and host required' });
+  }
+
+  // Check for duplicates by host
+  const existingIdx = SERVERS.findIndex(s => s.host === host);
+  if (existingIdx >= 0) {
+    // Update existing server
+    SERVERS[existingIdx] = { ...SERVERS[existingIdx], name, user: user || 'root' };
+    console.log(`[JOIN] Server updated: ${name} (${host})`);
+  } else {
+    // Add new server
+    SERVERS.push({ name, host, user: user || 'root', bandwidthLimit: null });
+    console.log(`[JOIN] Server registered: ${name} (${host})`);
+  }
+
+  saveServers();
+  statsCache = { data: null, timestamp: 0 }; // Clear cache to fetch new server
+  res.json({ success: true });
+});
+
+// GET /api/status - Dashboard status for wizard
+app.get('/api/status', requireAuth, (req, res) => {
+  const isFirstRun = SERVERS.length === 0;
+  const dashboardHost = req.headers.host?.split(':')[0] || req.hostname;
+
+  res.json({
+    firstRun: isFirstRun,
+    serverCount: SERVERS.length,
+    joinCommand: JOIN_TOKEN ? `curl -sL "http://${dashboardHost}:${PORT}/join/${JOIN_TOKEN}" | bash` : null,
+    hasJoinToken: !!JOIN_TOKEN
+  });
+});
+
+// GET /api/ssh-key - Get public SSH key for manual setup
+app.get('/api/ssh-key', requireAuth, (req, res) => {
+  try {
+    const publicKey = readFileSync(SSH_KEY_PATH + '.pub', 'utf8').trim();
+    res.json({ publicKey });
+  } catch (e) {
+    res.status(404).json({ error: 'SSH key not found' });
+  }
+});
+
+// GET /api/servers - List all servers
+app.get('/api/servers', requireAuth, (req, res) => {
+  res.json(SERVERS);
+});
+
+// DELETE /api/servers/:name - Remove a server
+app.delete('/api/servers/:name', requireAuth, (req, res) => {
+  const idx = SERVERS.findIndex(s => s.name === req.params.name);
+  if (idx === -1) return res.status(404).json({ error: 'Server not found' });
+
+  // Close SSH connection if exists
+  const poolEntry = sshPool.get(req.params.name);
+  if (poolEntry) {
+    poolEntry.conn?.end();
+    sshPool.delete(req.params.name);
+  }
+
+  SERVERS.splice(idx, 1);
+  saveServers();
+  statsCache = { data: null, timestamp: 0 };
+  res.json({ success: true });
+});
+
+// PUT /api/servers/:name - Update a server
+app.put('/api/servers/:name', requireAuth, (req, res) => {
+  const idx = SERVERS.findIndex(s => s.name === req.params.name);
+  if (idx === -1) return res.status(404).json({ error: 'Server not found' });
+
+  const { name, bandwidthLimit } = req.body;
+  if (name && name !== req.params.name) {
+    // Renaming - update pool key
+    const poolEntry = sshPool.get(req.params.name);
+    if (poolEntry) {
+      sshPool.delete(req.params.name);
+      sshPool.set(name, poolEntry);
+    }
+    SERVERS[idx].name = name;
+  }
+  if (bandwidthLimit !== undefined) {
+    SERVERS[idx].bandwidthLimit = bandwidthLimit ? parseFloat(bandwidthLimit) * 1024 ** 4 : null;
+  }
+
+  saveServers();
+  res.json({ success: true, server: SERVERS[idx] });
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// UPDATE SYSTEM - Check for updates and update all servers
+// ═══════════════════════════════════════════════════════════════════
+
+// Primary: our hosted binary, Fallback: ssmirr releases
+const PRIMARY_BINARY_URL = 'https://raw.githubusercontent.com/paradixe/conduit-relay/main/bin/conduit-linux-amd64';
+const PRIMARY_VERSION_URL = 'https://raw.githubusercontent.com/paradixe/conduit-relay/main/bin/version.txt';
+const FALLBACK_REPO = 'ssmirr/conduit';
+
+let cachedLatestVersion = null;
+let versionCacheTime = 0;
+
+// GET /api/version - Check current vs latest version
+app.get('/api/version', requireAuth, async (req, res) => {
+  try {
+    // Get latest version (cache for 5 minutes)
+    if (!cachedLatestVersion || Date.now() - versionCacheTime > 300000) {
+      // Try our version.txt first
+      try {
+        const vRes = await fetch(PRIMARY_VERSION_URL);
+        if (vRes.ok) {
+          cachedLatestVersion = (await vRes.text()).trim();
+          versionCacheTime = Date.now();
+        }
+      } catch {}
+
+      // Fallback to ssmirr releases
+      if (!cachedLatestVersion) {
+        const ghRes = await fetch(`https://api.github.com/repos/${FALLBACK_REPO}/releases/latest`);
+        if (ghRes.ok) {
+          const data = await ghRes.json();
+          cachedLatestVersion = data.tag_name;
+          versionCacheTime = Date.now();
+        }
+      }
+    }
+
+    // Get version from each server
+    const versions = await Promise.all(SERVERS.map(async (server) => {
+      try {
+        const output = await sshExec(server, '/usr/local/bin/conduit --version 2>/dev/null || echo "unknown"');
+        const match = output.match(/version\s+(\S+)/i);
+        return { server: server.name, version: match ? match[1] : output.trim() };
+      } catch (e) {
+        return { server: server.name, version: 'error', error: e.message };
+      }
+    }));
+
+    const needsUpdate = versions.filter(v => v.version !== cachedLatestVersion && v.version !== 'error' && v.version !== 'unknown');
+
+    res.json({
+      latest: cachedLatestVersion,
+      servers: versions,
+      updateAvailable: needsUpdate.length > 0,
+      serversNeedingUpdate: needsUpdate.map(v => v.server)
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /api/update - Update conduit on all servers (or specific ones)
+app.post('/api/update', requireAuth, async (req, res) => {
+  const { servers: targetServers } = req.body;
+
+  try {
+    // Determine which servers to update
+    const serversToUpdate = targetServers
+      ? SERVERS.filter(s => targetServers.includes(s.name))
+      : SERVERS;
+
+    const results = [];
+    for (const server of serversToUpdate) {
+      try {
+        console.log(`[UPDATE] Updating ${server.name}...`);
+        // Try primary (our hosted binary), fallback to ssmirr
+        const output = await sshExec(server, `
+          set -e
+          # Try primary source first
+          if curl -sL "${PRIMARY_BINARY_URL}" -o /usr/local/bin/conduit.new && [ -s /usr/local/bin/conduit.new ]; then
+            echo "Downloaded from primary"
+          else
+            # Fallback to ssmirr
+            LATEST=$(curl -s "https://api.github.com/repos/${FALLBACK_REPO}/releases/latest" | grep -oP '"tag_name": "\\K[^"]+')
+            curl -sL "https://github.com/${FALLBACK_REPO}/releases/download/$LATEST/conduit-linux-amd64" -o /usr/local/bin/conduit.new
+            echo "Downloaded from fallback ($LATEST)"
+          fi
+          chmod +x /usr/local/bin/conduit.new
+          systemctl stop conduit
+          mv /usr/local/bin/conduit.new /usr/local/bin/conduit
+          systemctl start conduit
+          /usr/local/bin/conduit --version
+        `);
+        const match = output.match(/version\s+(\S+)/i);
+        results.push({ server: server.name, success: true, version: match ? match[1] : 'updated' });
+        console.log(`[UPDATE] ${server.name} updated successfully`);
+      } catch (e) {
+        results.push({ server: server.name, success: false, error: e.message });
+        console.error(`[UPDATE] ${server.name} failed:`, e.message);
+      }
+    }
+
+    // Clear version cache
+    cachedLatestVersion = null;
+    statsCache = { data: null, timestamp: 0 };
+
+    res.json({ success: true, results });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /api/update-dashboard - Self-update the dashboard from GitHub
+app.post('/api/update-dashboard', requireAuth, async (req, res) => {
+  try {
+    console.log('[UPDATE] Updating dashboard...');
+    const { execSync } = await import('child_process');
+    const dashboardDir = '/opt/conduit-dashboard';
+
+    // Clone fresh and copy dashboard files (preserves .env and servers.json)
+    execSync(`rm -rf /tmp/conduit-update && git clone --depth 1 -q https://github.com/paradixe/conduit-relay.git /tmp/conduit-update`, { encoding: 'utf8' });
+    execSync(`cp -r /tmp/conduit-update/dashboard/* ${dashboardDir}/`, { encoding: 'utf8' });
+    execSync(`cd ${dashboardDir} && npm install --silent`, { encoding: 'utf8' });
+    execSync(`rm -rf /tmp/conduit-update`, { encoding: 'utf8' });
+
+    console.log('[UPDATE] Dashboard updated, restarting service...');
+    res.json({ success: true, message: 'Dashboard updated. Restarting...' });
+
+    // Restart after response is sent
+    setTimeout(() => {
+      execSync('systemctl restart conduit-dashboard');
+    }, 1000);
+  } catch (e) {
+    console.error('[UPDATE] Dashboard update failed:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.post('/api/control/:action', requireAuth, async (req, res) => {
   const { action } = req.params;
   if (!['stop', 'start', 'restart'].includes(action)) return res.status(400).json({ error: 'Invalid action' });
@@ -544,7 +873,16 @@ setInterval(async () => {
 
 // Start
 initDb().then(() => {
-  app.listen(PORT, () => console.log(`Dashboard running on http://localhost:${PORT}`));
-  // Initial geo fetch after startup
-  setTimeout(() => fetchAllGeoStats().catch(e => console.error('Initial geo fetch failed:', e)), 5000);
+  app.listen(PORT, () => {
+    console.log(`Dashboard running on http://localhost:${PORT}`);
+    if (SERVERS.length === 0) {
+      console.log('No servers configured - setup wizard will guide you');
+    } else {
+      console.log(`Monitoring ${SERVERS.length} server(s)`);
+    }
+  });
+  // Initial geo fetch after startup (only if servers configured)
+  if (SERVERS.length > 0) {
+    setTimeout(() => fetchAllGeoStats().catch(e => console.error('Initial geo fetch failed:', e)), 5000);
+  }
 }).catch(e => { console.error(e); process.exit(1); });

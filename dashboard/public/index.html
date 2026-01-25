@@ -191,6 +191,67 @@
       color: #737373;
     }
 
+    /* Per-node controls */
+    .node-controls {
+      display: flex;
+      gap: 1rem;
+      margin-top: 0.75rem;
+      padding-top: 0.625rem;
+      border-top: 1px solid #1a1a1a;
+    }
+    .node-btn {
+      background: none;
+      border: none;
+      padding: 0;
+      font-size: 0.6875rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: opacity 0.15s;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .node-btn-stop { color: #525252; }
+    .node-btn-stop:hover { color: #ef4444; }
+    .node-btn-start { color: #525252; }
+    .node-btn-start:hover { color: #22c55e; }
+    .node-btn-restart { color: #525252; }
+    .node-btn-restart:hover { color: #3b82f6; }
+    .node-btn-edit { color: #525252; margin-left: auto; }
+    .node-btn-edit:hover { color: #a3a3a3; }
+    .node-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+    /* Update banner */
+    .update-banner {
+      background: linear-gradient(90deg, rgba(59,130,246,0.15), rgba(34,197,94,0.15));
+      border: 1px solid rgba(59,130,246,0.3);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      margin-bottom: 1.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      animation: updatePulse 2s infinite;
+    }
+    @keyframes updatePulse {
+      0%, 100% { border-color: rgba(59,130,246,0.3); }
+      50% { border-color: rgba(34,197,94,0.5); }
+    }
+    .update-banner-text { font-size: 0.875rem; color: #e5e5e5; }
+    .update-banner-text span { color: #22c55e; font-weight: 600; }
+    .update-banner-btn {
+      background: #3b82f6;
+      border: none;
+      color: #fff;
+      padding: 0.5rem 1rem;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .update-banner-btn:hover { background: #2563eb; }
+    .update-banner-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
     /* Loading */
     .loading {
       text-align: center;
@@ -254,6 +315,175 @@
       .summary { grid-template-columns: repeat(2, 1fr); }
       .summary-value { font-size: 1.5rem; }
     }
+
+    /* Setup Wizard */
+    #wizard-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.92);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      animation: wizardFadeIn 0.2s ease;
+    }
+    @keyframes wizardFadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+    .wizard-modal {
+      background: #111;
+      border: 1px solid #262626;
+      border-radius: 12px;
+      width: 90%;
+      max-width: 520px;
+      overflow: hidden;
+      animation: wizardSlideUp 0.3s ease;
+    }
+    @keyframes wizardSlideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+    .wizard-header {
+      padding: 1.25rem 1.5rem;
+      border-bottom: 1px solid #1a1a1a;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .wizard-header h1 { font-size: 1.125rem; font-weight: 600; margin: 0; }
+    .wizard-header h1 span { color: #22c55e; }
+
+    .wizard-content { padding: 1.5rem; }
+    .wizard-content h2 { font-size: 1.125rem; font-weight: 600; margin: 0 0 0.5rem; }
+    .wizard-content > p { color: #737373; margin-bottom: 1.5rem; font-size: 0.875rem; }
+
+    .wizard-step {
+      display: flex;
+      gap: 1rem;
+      padding: 1rem;
+      border-radius: 8px;
+      margin-bottom: 0.75rem;
+      background: #0a0a0a;
+      border: 1px solid #1a1a1a;
+    }
+    .wizard-step.highlight {
+      background: rgba(34,197,94,0.06);
+      border-color: rgba(34,197,94,0.2);
+    }
+
+    .step-num {
+      width: 28px;
+      height: 28px;
+      background: #1a1a1a;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      font-size: 0.8125rem;
+      flex-shrink: 0;
+      color: #737373;
+    }
+    .wizard-step.highlight .step-num { background: #22c55e; color: #000; }
+
+    .step-content { flex: 1; }
+    .step-content h3 { font-size: 0.875rem; font-weight: 600; margin: 0 0 0.25rem; color: #e5e5e5; }
+    .step-content p { font-size: 0.8125rem; margin: 0; color: #737373; }
+    .step-content .muted { color: #525252; }
+
+    .wizard-code-box {
+      display: flex;
+      align-items: center;
+      background: #0a0a0a;
+      border: 1px solid #262626;
+      border-radius: 6px;
+      padding: 0.625rem 0.875rem;
+      margin: 0.75rem 0;
+      gap: 0.75rem;
+    }
+    .wizard-code-box code {
+      flex: 1;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.6875rem;
+      color: #22c55e;
+      white-space: nowrap;
+      overflow-x: auto;
+      line-height: 1.4;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+    .wizard-code-box code::-webkit-scrollbar { display: none; }
+    .wizard-code-box button {
+      background: #1a1a1a;
+      border: 1px solid #262626;
+      border-radius: 4px;
+      color: #737373;
+      padding: 0.375rem 0.5rem;
+      cursor: pointer;
+      font-size: 0.75rem;
+      transition: all 0.15s;
+      flex-shrink: 0;
+    }
+    .wizard-code-box button:hover { background: #262626; color: #e5e5e5; }
+
+    .wizard-footer {
+      padding: 1rem 1.5rem;
+      border-top: 1px solid #1a1a1a;
+      display: flex;
+      justify-content: space-between;
+      gap: 0.75rem;
+    }
+
+    .wizard-btn {
+      padding: 0.625rem 1.25rem;
+      border-radius: 6px;
+      font-size: 0.8125rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+      border: none;
+    }
+    .wizard-btn-secondary {
+      background: transparent;
+      border: 1px solid #262626;
+      color: #737373;
+    }
+    .wizard-btn-secondary:hover { border-color: #404040; color: #a3a3a3; }
+    .wizard-btn-primary {
+      background: #22c55e;
+      color: #000;
+    }
+    .wizard-btn-primary:hover { background: #16a34a; }
+
+    /* Settings button in header */
+    .settings-btn {
+      background: none;
+      border: 1px solid #262626;
+      border-radius: 6px;
+      color: #525252;
+      padding: 0.375rem 0.625rem;
+      cursor: pointer;
+      font-size: 0.875rem;
+      transition: all 0.15s;
+    }
+    .settings-btn:hover { border-color: #404040; color: #a3a3a3; }
+
+    /* Empty state */
+    .empty-state {
+      text-align: center;
+      padding: 3rem 1.5rem;
+      color: #525252;
+    }
+    .empty-state h3 { font-size: 1rem; font-weight: 500; color: #737373; margin-bottom: 0.5rem; }
+    .empty-state p { font-size: 0.875rem; margin-bottom: 1rem; }
+    .empty-state button {
+      background: #22c55e;
+      border: none;
+      color: #000;
+      padding: 0.625rem 1.25rem;
+      border-radius: 6px;
+      font-size: 0.8125rem;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    .empty-state button:hover { background: #16a34a; }
   </style>
 </head>
 <body>
@@ -263,6 +493,7 @@
       <div class="header-meta">
         <div class="pulse"></div>
         <span id="lastUpdate">-</span>
+        <button class="settings-btn" onclick="Wizard.showSettings()" title="Settings">⚙</button>
         <a href="/logout">Logout</a>
       </div>
     </header>
@@ -285,6 +516,8 @@
         <div class="summary-label">Download</div>
       </div>
     </div>
+
+    <div id="updateBanner" style="display:none"></div>
 
     <div class="charts-grid">
       <div class="chart-section">
@@ -361,6 +594,12 @@
         <div class="node-config" data-field="config" style="${s.maxClients || s.bandwidth !== null ? '' : 'display:none'}">
           <span class="config-tag" data-field="maxClients">-m ${s.maxClients ?? '?'}</span>
           <span class="config-tag" data-field="bandwidth">-b ${s.bandwidth === -1 ? '∞' : s.bandwidth ?? '?'}</span>
+        </div>
+        <div class="node-controls">
+          <button class="node-btn node-btn-stop" onclick="controlNode('${s.name}', 'stop')">Stop</button>
+          <button class="node-btn node-btn-start" onclick="controlNode('${s.name}', 'start')">Start</button>
+          <button class="node-btn node-btn-restart" onclick="controlNode('${s.name}', 'restart')">Restart</button>
+          <button class="node-btn node-btn-edit" onclick="editNode('${s.name}')">Edit</button>
         </div>
         <div class="node-error" data-field="error" style="${s.error ? '' : 'display:none'}">${s.error || ''}</div>
       </div>
@@ -672,14 +911,416 @@
       }
     }
 
+    // Per-node control
+    async function controlNode(serverName, action) {
+      const node = document.querySelector(`[data-server="${serverName}"]`);
+      const btn = node?.querySelector(`.node-btn-${action}`);
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = action === 'stop' ? 'Stopping...' : action === 'start' ? 'Starting...' : 'Restarting...';
+      }
+
+      try {
+        const res = await fetch(`/api/control/${serverName}/${action}`, { method: 'POST' });
+        const data = await res.json();
+        if (!data.success) {
+          alert(`Failed: ${data.error || 'Unknown error'}`);
+        }
+        setTimeout(fetchStats, 2000);
+      } catch (e) {
+        alert(`Control failed: ${e.message}`);
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = action.charAt(0).toUpperCase() + action.slice(1);
+        }
+      }
+    }
+
+    // Edit node modal
+    async function editNode(serverName) {
+      // Fetch current server data
+      let servers = [];
+      try {
+        const res = await fetch('/api/servers');
+        servers = await res.json();
+      } catch {}
+      const server = servers.find(s => s.name === serverName);
+      if (!server) return alert('Server not found');
+
+      const currentLimit = server.bandwidthLimit ? (server.bandwidthLimit / (1024**4)).toFixed(1) : '';
+
+      const html = `
+        <div id="edit-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.9);display:flex;align-items:center;justify-content:center;z-index:1000">
+          <div style="background:#111;border:1px solid #262626;border-radius:12px;width:90%;max-width:400px;overflow:hidden">
+            <div style="padding:1.25rem;border-bottom:1px solid #1a1a1a;display:flex;justify-content:space-between;align-items:center">
+              <h2 style="margin:0;font-size:1rem">Edit ${serverName}</h2>
+              <button onclick="document.getElementById('edit-modal').remove()" style="background:none;border:none;color:#525252;cursor:pointer;font-size:1.25rem">✕</button>
+            </div>
+            <div style="padding:1.25rem">
+              <label style="display:block;margin-bottom:1rem">
+                <span style="display:block;font-size:0.75rem;color:#737373;margin-bottom:0.375rem;text-transform:uppercase;letter-spacing:0.05em">Monthly Bandwidth Limit (TB)</span>
+                <input type="number" id="edit-bandwidth" value="${currentLimit}" placeholder="Leave empty for unlimited" step="0.1" min="0" style="width:100%;background:#0a0a0a;border:1px solid #262626;border-radius:6px;padding:0.625rem;color:#e5e5e5;font-family:'JetBrains Mono',monospace;font-size:0.875rem">
+                <span style="font-size:0.6875rem;color:#525252;margin-top:0.25rem;display:block">Empty = unlimited</span>
+              </label>
+              <label style="display:block;margin-bottom:1rem">
+                <span style="display:block;font-size:0.75rem;color:#737373;margin-bottom:0.375rem;text-transform:uppercase;letter-spacing:0.05em">Display Name</span>
+                <input type="text" id="edit-name" value="${server.name}" style="width:100%;background:#0a0a0a;border:1px solid #262626;border-radius:6px;padding:0.625rem;color:#e5e5e5;font-size:0.875rem">
+              </label>
+            </div>
+            <div style="padding:1rem 1.25rem;border-top:1px solid #1a1a1a;display:flex;justify-content:space-between">
+              <button onclick="deleteNode('${serverName}')" style="background:rgba(239,68,68,0.15);border:none;color:#ef4444;padding:0.5rem 1rem;border-radius:6px;cursor:pointer;font-size:0.8125rem">Delete</button>
+              <button onclick="saveNode('${serverName}')" style="background:#22c55e;border:none;color:#000;padding:0.5rem 1rem;border-radius:6px;cursor:pointer;font-weight:500;font-size:0.8125rem">Save</button>
+            </div>
+          </div>
+        </div>
+      `;
+      document.body.insertAdjacentHTML('beforeend', html);
+    }
+
+    async function saveNode(serverName) {
+      const bandwidth = document.getElementById('edit-bandwidth').value;
+      const name = document.getElementById('edit-name').value;
+
+      try {
+        const res = await fetch(`/api/servers/${serverName}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, bandwidthLimit: bandwidth || null })
+        });
+        const data = await res.json();
+        if (data.success) {
+          document.getElementById('edit-modal').remove();
+          fetchStats();
+        } else {
+          alert('Failed: ' + (data.error || 'Unknown error'));
+        }
+      } catch (e) {
+        alert('Save failed: ' + e.message);
+      }
+    }
+
+    async function deleteNode(serverName) {
+      if (!confirm(`Delete ${serverName}? This will remove it from monitoring.`)) return;
+      try {
+        const res = await fetch(`/api/servers/${serverName}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.success) {
+          document.getElementById('edit-modal').remove();
+          fetchStats();
+        } else {
+          alert('Failed: ' + (data.error || 'Unknown error'));
+        }
+      } catch (e) {
+        alert('Delete failed: ' + e.message);
+      }
+    }
+
+    // Update system
+    async function checkForUpdates() {
+      try {
+        const res = await fetch('/api/version');
+        if (!res.ok) return;
+        const data = await res.json();
+
+        const banner = document.getElementById('updateBanner');
+        if (data.updateAvailable && data.serversNeedingUpdate?.length > 0) {
+          const count = data.serversNeedingUpdate.length;
+          banner.innerHTML = `
+            <div class="update-banner">
+              <div class="update-banner-text">
+                Update available: <span>${data.latest}</span> - ${count} server${count > 1 ? 's' : ''} need${count === 1 ? 's' : ''} update
+              </div>
+              <button class="update-banner-btn" onclick="updateAllServers()">Update All</button>
+            </div>
+          `;
+          banner.style.display = 'block';
+        } else {
+          banner.style.display = 'none';
+        }
+      } catch (e) {
+        console.error('Update check failed:', e);
+      }
+    }
+
+    async function updateAllServers() {
+      const btn = document.querySelector('.update-banner-btn');
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Updating...';
+      }
+
+      try {
+        const res = await fetch('/api/update', { method: 'POST' });
+        const data = await res.json();
+
+        if (data.results) {
+          const failed = data.results.filter(r => !r.success);
+          const success = data.results.filter(r => r.success);
+
+          if (failed.length === 0) {
+            alert(`Updated ${success.length} server(s) successfully!`);
+          } else {
+            alert(`Updated ${success.length} server(s). Failed: ${failed.map(f => f.server).join(', ')}`);
+          }
+        }
+
+        // Hide banner and refresh
+        document.getElementById('updateBanner').style.display = 'none';
+        setTimeout(() => {
+          fetchStats();
+          checkForUpdates();
+        }, 3000);
+      } catch (e) {
+        alert(`Update failed: ${e.message}`);
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = 'Update All';
+        }
+      }
+    }
+
     fetchStats();
     fetchHistory();
     fetchBandwidth();
     fetchGeo();
+    checkForUpdates();
     setInterval(fetchStats, 10000);
     setInterval(fetchHistory, 60000);
     setInterval(fetchBandwidth, 60000);
     setInterval(fetchGeo, 60000);
+    setInterval(checkForUpdates, 300000); // Check for updates every 5 minutes
+
+    // ═══════════════════════════════════════════════════════════════
+    // Setup Wizard
+    // ═══════════════════════════════════════════════════════════════
+    const Wizard = {
+      joinCommand: '',
+      hasJoinToken: false,
+
+      async init() {
+        try {
+          const res = await fetch('/api/status');
+          if (res.status === 401) return;
+          const status = await res.json();
+
+          this.joinCommand = status.joinCommand || '';
+          this.hasJoinToken = status.hasJoinToken;
+
+          if (status.firstRun || status.serverCount === 0) {
+            this.show();
+          }
+        } catch (e) {
+          console.error('Wizard init failed:', e);
+        }
+      },
+
+      show() {
+        if (document.getElementById('wizard-overlay')) return;
+
+        const html = `
+          <div id="wizard-overlay">
+            <div class="wizard-modal">
+              <div class="wizard-header">
+                <h1>conduit<span>.</span></h1>
+              </div>
+              <div class="wizard-content">
+                <h2>Welcome! 👋</h2>
+                <p>Your dashboard is ready. Now let's connect your servers.</p>
+
+                <div class="wizard-step">
+                  <div class="step-num">1</div>
+                  <div class="step-content">
+                    <h3>This server is ready</h3>
+                    <p class="muted">The relay on this machine is being monitored.</p>
+                  </div>
+                </div>
+
+                ${this.hasJoinToken ? `
+                <div class="wizard-step highlight">
+                  <div class="step-num">2</div>
+                  <div class="step-content">
+                    <h3>Add other servers</h3>
+                    <p>SSH into each server and run:</p>
+                    <div class="wizard-code-box">
+                      <code id="wizard-join-cmd">${this.joinCommand}</code>
+                      <button onclick="Wizard.copy()">Copy</button>
+                    </div>
+                    <p class="muted">This installs the relay (if needed) and auto-connects to this dashboard.</p>
+                  </div>
+                </div>
+                ` : `
+                <div class="wizard-step">
+                  <div class="step-num">2</div>
+                  <div class="step-content">
+                    <h3>Add servers manually</h3>
+                    <p class="muted">Use Settings to add servers (SSH key must be configured separately).</p>
+                  </div>
+                </div>
+                `}
+
+                <div class="wizard-step">
+                  <div class="step-num">3</div>
+                  <div class="step-content">
+                    <h3>That's it!</h3>
+                    <p class="muted">Servers appear here automatically after running the command.</p>
+                  </div>
+                </div>
+              </div>
+              <div class="wizard-footer">
+                <button class="wizard-btn wizard-btn-secondary" onclick="Wizard.close()">I'll add servers later</button>
+                <button class="wizard-btn wizard-btn-primary" onclick="Wizard.close()">Done</button>
+              </div>
+            </div>
+          </div>
+        `;
+
+        document.body.insertAdjacentHTML('beforeend', html);
+      },
+
+      close() {
+        const overlay = document.getElementById('wizard-overlay');
+        if (overlay) overlay.remove();
+      },
+
+      copy() {
+        navigator.clipboard.writeText(this.joinCommand).then(() => {
+          const btn = document.querySelector('.wizard-code-box button');
+          if (btn) {
+            const orig = btn.textContent;
+            btn.textContent = 'Copied!';
+            setTimeout(() => btn.textContent = orig, 1500);
+          }
+        });
+      },
+
+      async showSettings() {
+        // Fetch current status
+        let joinCommand = '';
+        let sshKey = '';
+        try {
+          const statusRes = await fetch('/api/status');
+          const status = await statusRes.json();
+          joinCommand = status.joinCommand || '';
+        } catch {}
+        try {
+          const keyRes = await fetch('/api/ssh-key');
+          const keyData = await keyRes.json();
+          sshKey = keyData.publicKey || '';
+        } catch {}
+
+        // Store for copy function
+        this._joinCommand = joinCommand;
+        this._sshKey = sshKey;
+
+        const html = `
+          <div id="wizard-overlay">
+            <div class="wizard-modal">
+              <div class="wizard-header">
+                <h1>Settings</h1>
+                <button class="settings-btn" onclick="Wizard.close()">✕</button>
+              </div>
+              <div class="wizard-content">
+                ${joinCommand ? `
+                <div class="wizard-step highlight">
+                  <div class="step-content" style="width:100%">
+                    <h3>Add Servers</h3>
+                    <p>Run this on other servers to connect them:</p>
+                    <div class="wizard-code-box">
+                      <code>${joinCommand}</code>
+                      <button onclick="Wizard.copyText('join', this)">Copy</button>
+                    </div>
+                  </div>
+                </div>
+                ` : ''}
+
+                ${sshKey ? `
+                <div class="wizard-step">
+                  <div class="step-content" style="width:100%">
+                    <h3>SSH Public Key</h3>
+                    <p class="muted">For manual server setup:</p>
+                    <div class="wizard-code-box">
+                      <code style="font-size:0.625rem">${sshKey}</code>
+                      <button onclick="Wizard.copyText('ssh', this)">Copy</button>
+                    </div>
+                  </div>
+                </div>
+                ` : ''}
+
+                <div class="wizard-step">
+                  <div class="step-content" style="width:100%">
+                    <h3>Dashboard</h3>
+                    <p class="muted" style="font-family:'JetBrains Mono',monospace;font-size:0.75rem;margin-bottom:0.75rem">
+                      Config: /opt/conduit-dashboard/.env
+                    </p>
+                    <button class="wizard-btn wizard-btn-secondary" onclick="Wizard.updateDashboard(this)" style="font-size:0.75rem">Update Dashboard</button>
+                  </div>
+                </div>
+              </div>
+              <div class="wizard-footer">
+                <div></div>
+                <button class="wizard-btn wizard-btn-primary" onclick="Wizard.close()">Close</button>
+              </div>
+            </div>
+          </div>
+        `;
+
+        if (document.getElementById('wizard-overlay')) {
+          document.getElementById('wizard-overlay').remove();
+        }
+        document.body.insertAdjacentHTML('beforeend', html);
+      },
+
+      copyText(type, btn) {
+        const text = type === 'join' ? this._joinCommand : this._sshKey;
+        navigator.clipboard.writeText(text).then(() => {
+          btn.textContent = 'Copied!';
+          setTimeout(() => btn.textContent = 'Copy', 1500);
+        });
+      },
+
+      async updateDashboard(btn) {
+        if (!confirm('Update dashboard to latest version? The page will reload.')) return;
+        btn.disabled = true;
+        btn.textContent = 'Updating...';
+        try {
+          const res = await fetch('/api/update-dashboard', { method: 'POST' });
+          const data = await res.json();
+          if (data.success) {
+            btn.textContent = 'Restarting...';
+            setTimeout(() => location.reload(), 3000);
+          } else {
+            alert('Update failed: ' + (data.error || 'Unknown error'));
+            btn.disabled = false;
+            btn.textContent = 'Update Dashboard';
+          }
+        } catch (e) {
+          alert('Update failed: ' + e.message);
+          btn.disabled = false;
+          btn.textContent = 'Update Dashboard';
+        }
+      }
+    };
+
+    // Initialize wizard on page load
+    Wizard.init();
+
+    // Handle empty state in nodes
+    const origFetchStats = fetchStats;
+    fetchStats = async function() {
+      await origFetchStats();
+      const nodesEl = document.getElementById('nodes');
+      const nodes = nodesEl.querySelectorAll('.node');
+      if (nodes.length === 0 && !nodesEl.querySelector('.empty-state')) {
+        nodesEl.innerHTML = `
+          <div class="empty-state">
+            <h3>No servers connected</h3>
+            <p>Add your first server to start monitoring.</p>
+            <button onclick="Wizard.show()">Setup Guide</button>
+          </div>
+        `;
+      }
+    };
   </script>
 </body>
 </html>
