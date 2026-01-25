@@ -53,6 +53,15 @@ curl -sL https://raw.githubusercontent.com/paradixe/conduit-relay/main/install.s
 
 تمام. ریلی داره کار میکنه.
 
+**تنظیمات:**
+- `-m` تعداد کلاینت (پیش‌فرض: 200)
+- `-b` محدودیت سرعت به Mbps (پیش‌فرض: -1 = نامحدود)
+
+مثلاً با 500 کلاینت و 100 مگابیت:
+```bash
+curl -sL https://raw.githubusercontent.com/paradixe/conduit-relay/main/install.sh | MAX_CLIENTS=500 BANDWIDTH=100 bash
+```
+
 چک کن درست کار میکنه:
 ```bash
 journalctl -u conduit -f
@@ -182,7 +191,18 @@ Then paste your password (nothing shows when you type, that's normal).
 curl -sL https://raw.githubusercontent.com/paradixe/conduit-relay/main/install.sh | bash
 ```
 
-Done. Check it's running:
+Done.
+
+**Configuration options:**
+- `-m` max clients (default: 200)
+- `-b` bandwidth limit in Mbps (default: -1 = unlimited)
+
+Custom install with 500 clients and 100 Mbps limit:
+```bash
+curl -sL https://raw.githubusercontent.com/paradixe/conduit-relay/main/install.sh | MAX_CLIENTS=500 BANDWIDTH=100 bash
+```
+
+Check it's running:
 ```bash
 journalctl -u conduit -f
 ```

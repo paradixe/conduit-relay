@@ -107,9 +107,13 @@ cmd_install() {
     servers=$target
   fi
 
+  # Configuration (override with env vars: MAX_CLIENTS=500 BANDWIDTH=100 ./fleet.sh install all)
+  local max_clients=${MAX_CLIENTS:-200}
+  local bandwidth=${BANDWIDTH:--1}
+
   for name in $servers; do
-    echo -e "${YELLOW}[$name]${NC} Installing..."
-    if run_on "$name" 'curl -sL "https://raw.githubusercontent.com/paradixe/conduit-relay/main/install.sh" | bash' 2>&1; then
+    echo -e "${YELLOW}[$name]${NC} Installing (m=$max_clients, b=$bandwidth)..."
+    if run_on "$name" "curl -sL 'https://raw.githubusercontent.com/paradixe/conduit-relay/main/install.sh' | MAX_CLIENTS=$max_clients BANDWIDTH=$bandwidth bash" 2>&1; then
       echo -e "${GREEN}[$name]${NC} Done"
     else
       echo -e "${RED}[$name]${NC} Failed"

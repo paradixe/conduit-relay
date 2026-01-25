@@ -24,8 +24,11 @@ echo "Downloading..."
 curl -sL "https://github.com/$REPO/releases/download/$LATEST/conduit-linux-amd64" -o "$INSTALL_DIR/conduit"
 chmod +x "$INSTALL_DIR/conduit"
 
-# Max clients (override with: curl ... | MAX_CLIENTS=500 bash)
+# Configuration (override with: curl ... | MAX_CLIENTS=500 BANDWIDTH=100 bash)
+# -m: max concurrent clients (default 200, CLI default is 50)
+# -b: bandwidth limit in Mbps (-1 = unlimited, CLI default is 40)
 MAX_CLIENTS=${MAX_CLIENTS:-200}
+BANDWIDTH=${BANDWIDTH:--1}
 
 # Create data directory
 mkdir -p "$DATA_DIR"
@@ -38,7 +41,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=$INSTALL_DIR/conduit start --max-clients $MAX_CLIENTS --bandwidth 5 --data-dir $DATA_DIR -v
+ExecStart=$INSTALL_DIR/conduit start -m $MAX_CLIENTS -b $BANDWIDTH --data-dir $DATA_DIR -v
 Restart=always
 RestartSec=5
 

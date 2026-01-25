@@ -4,7 +4,12 @@ Volunteer relay for [Psiphon](https://psiphon.ca). Routes traffic for users in c
 
 **Requirements:** Linux VPS, root access
 **Bandwidth:** 50-200 GB/day depending on demand
-**Default:** 200 max clients (override: `curl ... | MAX_CLIENTS=500 bash`)
+
+**Defaults:**
+- `-m 200` max clients (CLI default: 50)
+- `-b -1` unlimited bandwidth (CLI default: 40 Mbps)
+
+**Override:** `curl ... | MAX_CLIENTS=500 BANDWIDTH=100 bash`
 
 **New?** Check the [step-by-step setup guide](SETUP.md) (English + فارسی)
 
@@ -32,7 +37,8 @@ Manage multiple relays from your laptop. Requires SSH key auth.
 ```bash
 ./fleet.sh add node1 1.2.3.4
 ./fleet.sh add node2 5.6.7.8
-./fleet.sh install all
+./fleet.sh install all                              # default: -m 200 -b -1
+MAX_CLIENTS=500 BANDWIDTH=100 ./fleet.sh install all  # custom
 ./fleet.sh status
 ./fleet.sh update all
 ./fleet.sh stop all

@@ -154,7 +154,7 @@ async function sshExec(server, command) {
 }
 
 function parseConduitStatus(output, serverName) {
-  const result = { name: serverName, status: 'offline', clients: 0, upload: '0 B', download: '0 B', uptime: 'N/A', error: null };
+  const result = { name: serverName, status: 'offline', clients: 0, upload: '0 B', download: '0 B', uptime: 'N/A', error: null, maxClients: null, bandwidth: null };
   if (!output) return result;
 
   if (output.includes('Active: active') || output.includes('running')) result.status = 'running';
@@ -176,6 +176,12 @@ function parseConduitStatus(output, serverName) {
     result.download = m[3].trim();
     result.uptime = m[4].trim();
   }
+
+  // Parse conduit config flags from systemd service
+  const mMatch = output.match(/-m\s+(\d+)/);
+  const bMatch = output.match(/-b\s+(-?\d+)/);
+  if (mMatch) result.maxClients = parseInt(mMatch[1], 10);
+  if (bMatch) result.bandwidth = parseInt(bMatch[1], 10);
 
   if (output.includes('[OK] Connected to Psiphon network')) result.status = 'connected';
   return result;
@@ -314,12 +320,12 @@ const BATCH_DELAY = 500;
 
 async function fetchServerStats(server) {
   try {
-    const output = await sshExec(server, 'systemctl status conduit 2>/dev/null; journalctl -u conduit -n 20 --no-pager 2>/dev/null');
+    const output = await sshExec(server, 'systemctl status conduit 2>/dev/null; journalctl -u conduit -n 20 --no-pager 2>/dev/null; grep ExecStart /etc/systemd/system/conduit.service 2>/dev/null');
     const stats = parseConduitStatus(output, server.name);
     stats.host = server.host;
     return stats;
   } catch (err) {
-    return { name: server.name, host: server.host, status: 'error', clients: 0, upload: '0 B', download: '0 B', uptime: 'N/A', error: err.message };
+    return { name: server.name, host: server.host, status: 'error', clients: 0, upload: '0 B', download: '0 B', uptime: 'N/A', maxClients: null, bandwidth: null, error: err.message };
   }
 }
 

@@ -175,6 +175,21 @@
       font-size: 0.75rem;
       color: #ef4444;
     }
+    .node-config {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 0.75rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid #1a1a1a;
+    }
+    .config-tag {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.6875rem;
+      padding: 0.2rem 0.4rem;
+      background: #1a1a1a;
+      border-radius: 3px;
+      color: #737373;
+    }
 
     /* Loading */
     .loading {
@@ -343,6 +358,10 @@
           <div><div class="node-stat-value" data-field="upload">${s.upload}</div><div class="node-stat-label">Upload</div></div>
           <div><div class="node-stat-value" data-field="download">${s.download}</div><div class="node-stat-label">Download</div></div>
         </div>
+        <div class="node-config" data-field="config" style="${s.maxClients || s.bandwidth !== null ? '' : 'display:none'}">
+          <span class="config-tag" data-field="maxClients">-m ${s.maxClients ?? '?'}</span>
+          <span class="config-tag" data-field="bandwidth">-b ${s.bandwidth === -1 ? '∞' : s.bandwidth ?? '?'}</span>
+        </div>
         <div class="node-error" data-field="error" style="${s.error ? '' : 'display:none'}">${s.error || ''}</div>
       </div>
     `;
@@ -375,6 +394,16 @@
             for (const [field, val] of Object.entries(fields)) {
               const el = node.querySelector(`[data-field="${field}"]`);
               if (el && el.textContent !== String(val)) el.textContent = val;
+            }
+
+            // Update config tags
+            const configEl = node.querySelector('[data-field="config"]');
+            if (configEl) {
+              configEl.style.display = (s.maxClients || s.bandwidth !== null) ? '' : 'none';
+              const mEl = configEl.querySelector('[data-field="maxClients"]');
+              const bEl = configEl.querySelector('[data-field="bandwidth"]');
+              if (mEl) mEl.textContent = `-m ${s.maxClients ?? '?'}`;
+              if (bEl) bEl.textContent = `-b ${s.bandwidth === -1 ? '∞' : s.bandwidth ?? '?'}`;
             }
 
             const errEl = node.querySelector('[data-field="error"]');
