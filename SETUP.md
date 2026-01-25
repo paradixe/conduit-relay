@@ -64,7 +64,7 @@ curl -sL https://raw.githubusercontent.com/paradixe/conduit-relay/main/setup.sh 
 ════════════════════════════════════════════════════════════
   To add other servers, run this on each:
 
-  curl -sL "http://123.45.67.89:3000/join/abc123..." | bash
+  curl -sL "http://123.45.67.89:3000/join/abc123..." | sudo bash
 
 ════════════════════════════════════════════════════════════
 ```

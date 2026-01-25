@@ -27,7 +27,7 @@ Optionally enter a domain during setup to get HTTPS via Let's Encrypt.
 **Adding more servers:**
 ```bash
 # On each additional server, run the join command shown after setup:
-curl -sL "http://YOUR_DASHBOARD_IP:3000/join/TOKEN" | bash
+curl -sL "http://YOUR_DASHBOARD_IP:3000/join/TOKEN" | sudo bash
 ```
 
 Servers auto-register and appear on your dashboard.
