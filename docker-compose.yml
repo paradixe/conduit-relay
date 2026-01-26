@@ -2,6 +2,9 @@ version: '3.8'
 
 # Conduit Relay + Dashboard
 # Usage: docker compose up -d
+#
+# For HTTPS: Set DOMAIN in .env file
+# The caddy service auto-enables when DOMAIN is set
 
 services:
   relay:
@@ -27,7 +30,7 @@ services:
     container_name: conduit-dashboard
     restart: unless-stopped
     environment:
-      - PORT=${PORT:-3000}
+      - PORT=3000
       - DASHBOARD_PASSWORD=${DASHBOARD_PASSWORD}
       - SESSION_SECRET=${SESSION_SECRET}
       - JOIN_TOKEN=${JOIN_TOKEN}
@@ -36,13 +39,37 @@ services:
       - dashboard-data:/opt/conduit-dashboard/data
       - ${SSH_KEY_PATH:-~/.ssh/id_ed25519}:/ssh/id_ed25519:ro
       - ${SSH_KEY_PATH:-~/.ssh/id_ed25519}.pub:/ssh/id_ed25519.pub:ro
+    # Expose port 3000 for HTTP-only mode (when not using Caddy)
     ports:
-      - "${PORT:-3000}:3000"
+      - "3000:3000"
     depends_on:
       - relay
+
+  # Caddy reverse proxy for HTTPS (auto-enabled when DOMAIN is set)
+  caddy:
+    image: caddy:2-alpine
+    container_name: conduit-caddy
+    restart: unless-stopped
+    profiles:
+      - https
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - DOMAIN=${DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - dashboard
 
 volumes:
   relay-data:
     name: conduit-relay-data
   dashboard-data:
     name: conduit-dashboard-data
+  caddy-data:
+    name: conduit-caddy-data
+  caddy-config:
+    name: conduit-caddy-config
