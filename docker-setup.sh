@@ -233,10 +233,9 @@ if [ "${MIGRATE_KEY:-false}" = true ] && [ -f "$NATIVE_KEY_PATH" ]; then
   echo ""
   echo -e "${YELLOW}Migrating relay key...${NC}"
 
-  # Copy key into the Docker volume
-  docker cp "$NATIVE_KEY_PATH" conduit-relay:/data/conduit_key.json 2>/dev/null || \
-  docker cp "$NATIVE_KEY_PATH" conduit:/data/conduit_key.json 2>/dev/null || \
-  docker cp "$NATIVE_KEY_PATH" conduit-relay:/home/conduit/data/conduit_key.json 2>/dev/null || true
+  # Copy key into the Docker volume (ssmirr image uses /home/conduit/data)
+  docker cp "$NATIVE_KEY_PATH" conduit-relay:/home/conduit/data/conduit_key.json 2>/dev/null || \
+  docker cp "$NATIVE_KEY_PATH" conduit:/home/conduit/data/conduit_key.json 2>/dev/null || true
 
   # Restart relay to pick up the key
   docker restart conduit-relay 2>/dev/null || docker restart conduit 2>/dev/null || true

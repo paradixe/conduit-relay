@@ -15,10 +15,10 @@ services:
       - -b
       - "${BANDWIDTH:--1}"
       - --data-dir
-      - /data
+      - /home/conduit/data
       - -v
     volumes:
-      - relay-data:/data
+      - relay-data:/home/conduit/data
     # Conduit uses random UDP ports for WebRTC, needs host networking
     network_mode: host
 

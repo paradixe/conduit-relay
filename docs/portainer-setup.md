@@ -26,9 +26,9 @@ services:
     image: ghcr.io/ssmirr/conduit/conduit:latest
     container_name: conduit-relay
     restart: unless-stopped
-    command: ["start", "-m", "200", "-b", "-1", "--data-dir", "/data", "-v"]
+    command: ["start", "-m", "200", "-b", "-1", "--data-dir", "/home/conduit/data", "-v"]
     volumes:
-      - relay-data:/data
+      - relay-data:/home/conduit/data
     network_mode: host
 
 volumes:
@@ -50,9 +50,9 @@ services:
     image: ghcr.io/ssmirr/conduit/conduit:latest
     container_name: conduit-relay
     restart: unless-stopped
-    command: ["start", "-m", "200", "-b", "-1", "--data-dir", "/data", "-v"]
+    command: ["start", "-m", "200", "-b", "-1", "--data-dir", "/home/conduit/data", "-v"]
     volumes:
-      - relay-data:/data
+      - relay-data:/home/conduit/data
     network_mode: host
 
   dashboard:
@@ -116,9 +116,9 @@ services:
     image: ghcr.io/ssmirr/conduit/conduit:latest
     container_name: conduit-relay
     restart: unless-stopped
-    command: ["start", "-m", "200", "-b", "-1", "--data-dir", "/data", "-v"]
+    command: ["start", "-m", "200", "-b", "-1", "--data-dir", "/home/conduit/data", "-v"]
     volumes:
-      - relay-data:/data
+      - relay-data:/home/conduit/data
     network_mode: host
 
 volumes:
@@ -140,9 +140,9 @@ services:
     image: ghcr.io/ssmirr/conduit/conduit:latest
     container_name: conduit-relay
     restart: unless-stopped
-    command: ["start", "-m", "200", "-b", "-1", "--data-dir", "/data", "-v"]
+    command: ["start", "-m", "200", "-b", "-1", "--data-dir", "/home/conduit/data", "-v"]
     volumes:
-      - relay-data:/data
+      - relay-data:/home/conduit/data
     network_mode: host
 
   dashboard:
