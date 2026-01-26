@@ -322,6 +322,11 @@
     .clients-table .bytes { color: #3b82f6; }
     .clients-table .speed { color: #eab308; }
     .clients-table .speed-high { color: #22c55e; }
+    .clients-table th.sortable { cursor: pointer; user-select: none; }
+    .clients-table th.sortable:hover { color: #a3a3a3; }
+    .clients-table th.sortable.active { color: #3b82f6; }
+    .clients-table th .sort-icon { font-size: 0.6rem; margin-left: 0.25rem; opacity: 0.5; }
+    .clients-table th.sortable.active .sort-icon { opacity: 1; }
 
     /* Controls */
     .controls { display: flex; gap: 0.5rem; }
@@ -598,12 +603,12 @@
           <table class="clients-table">
             <thead>
               <tr>
-                <th>IP</th>
-                <th>Country</th>
-                <th>Server</th>
-                <th>Download</th>
-                <th>Upload</th>
-                <th>Speed</th>
+                <th class="sortable" data-sort="ip" onclick="sortClients('ip')">IP <span class="sort-icon"></span></th>
+                <th class="sortable" data-sort="country_name" onclick="sortClients('country_name')">Country <span class="sort-icon"></span></th>
+                <th class="sortable" data-sort="server" onclick="sortClients('server')">Server <span class="sort-icon"></span></th>
+                <th class="sortable" data-sort="bytes_out" onclick="sortClients('bytes_out')">Download <span class="sort-icon"></span></th>
+                <th class="sortable" data-sort="bytes_in" onclick="sortClients('bytes_in')">Upload <span class="sort-icon"></span></th>
+                <th class="sortable active" data-sort="speed" onclick="sortClients('speed')">Speed <span class="sort-icon">▼</span></th>
               </tr>
             </thead>
             <tbody id="clientsBody">
@@ -872,46 +877,101 @@
       } catch (e) { console.error('Geo fetch failed:', e); }
     }
 
+    // Client sorting state
+    let clientsData = [];
+    let clientSortCol = 'speed';
+    let clientSortDir = 'desc'; // 'asc' or 'desc'
+
+    // Format speed to human readable (bytes/sec to KB/s or MB/s)
+    const formatSpeed = (bytesPerSec) => {
+      if (!bytesPerSec || bytesPerSec === 0) return '-';
+      if (bytesPerSec < 1024) return `${bytesPerSec} B/s`;
+      if (bytesPerSec < 1024 * 1024) return `${(bytesPerSec / 1024).toFixed(1)} KB/s`;
+      return `${(bytesPerSec / (1024 * 1024)).toFixed(1)} MB/s`;
+    };
+
+    // Render clients table with current sort
+    function renderClients() {
+      const tbody = document.getElementById('clientsBody');
+      const countEl = document.getElementById('clientCount');
+      
+      if (!clientsData.length) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#525252;padding:2rem;">No active clients in the last 30 minutes</td></tr>';
+        countEl.textContent = '0 clients';
+        return;
+      }
+
+      countEl.textContent = `${clientsData.length} clients`;
+
+      // Sort data
+      const sorted = [...clientsData].sort((a, b) => {
+        let valA = a[clientSortCol];
+        let valB = b[clientSortCol];
+        
+        // Handle string vs number sorting
+        if (typeof valA === 'string') {
+          valA = valA.toLowerCase();
+          valB = (valB || '').toLowerCase();
+          return clientSortDir === 'asc' 
+            ? valA.localeCompare(valB) 
+            : valB.localeCompare(valA);
+        }
+        
+        // Numeric sort
+        valA = valA || 0;
+        valB = valB || 0;
+        return clientSortDir === 'asc' ? valA - valB : valB - valA;
+      });
+
+      tbody.innerHTML = sorted.map(client => {
+        const isIran = client.country_code === 'IR';
+        const speedClass = client.speed > 100 * 1024 ? 'speed-high' : 'speed';
+        return `
+          <tr>
+            <td class="ip">${client.ip}</td>
+            <td class="country ${isIran ? 'country-ir' : ''}">${client.country_name || 'Unknown'}</td>
+            <td class="server">${client.server}</td>
+            <td class="bytes">${formatBytes(client.bytes_out)}</td>
+            <td class="bytes">${formatBytes(client.bytes_in)}</td>
+            <td class="${speedClass}">${formatSpeed(client.speed)}</td>
+          </tr>
+        `;
+      }).join('');
+
+      // Update header icons
+      document.querySelectorAll('.clients-table th.sortable').forEach(th => {
+        const col = th.dataset.sort;
+        const icon = th.querySelector('.sort-icon');
+        if (col === clientSortCol) {
+          th.classList.add('active');
+          icon.textContent = clientSortDir === 'desc' ? '▼' : '▲';
+        } else {
+          th.classList.remove('active');
+          icon.textContent = '';
+        }
+      });
+    }
+
+    // Sort clients by column
+    function sortClients(col) {
+      if (clientSortCol === col) {
+        // Toggle direction
+        clientSortDir = clientSortDir === 'desc' ? 'asc' : 'desc';
+      } else {
+        // New column, default to descending for numbers, ascending for strings
+        clientSortCol = col;
+        clientSortDir = ['ip', 'country_name', 'server'].includes(col) ? 'asc' : 'desc';
+      }
+      renderClients();
+    }
+
     // Fetch and display active clients
     async function fetchClients() {
       try {
         const res = await fetch('/api/clients?minutes=30');
         if (res.status === 401) return;
-        const data = await res.json();
-
-        const tbody = document.getElementById('clientsBody');
-        const countEl = document.getElementById('clientCount');
-        
-        if (!data.length) {
-          tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#525252;padding:2rem;">No active clients in the last 30 minutes</td></tr>';
-          countEl.textContent = '0 clients';
-          return;
-        }
-
-        countEl.textContent = `${data.length} clients`;
-        
-        // Format speed to human readable (bytes/sec to KB/s or MB/s)
-        const formatSpeed = (bytesPerSec) => {
-          if (!bytesPerSec || bytesPerSec === 0) return '-';
-          if (bytesPerSec < 1024) return `${bytesPerSec} B/s`;
-          if (bytesPerSec < 1024 * 1024) return `${(bytesPerSec / 1024).toFixed(1)} KB/s`;
-          return `${(bytesPerSec / (1024 * 1024)).toFixed(1)} MB/s`;
-        };
-
-        tbody.innerHTML = data.map(client => {
-          const isIran = client.country_code === 'IR';
-          const speedClass = client.speed > 100 * 1024 ? 'speed-high' : 'speed'; // >100KB/s is high
-          return `
-            <tr>
-              <td class="ip">${client.ip}</td>
-              <td class="country ${isIran ? 'country-ir' : ''}">${client.country_name || 'Unknown'}</td>
-              <td class="server">${client.server}</td>
-              <td class="bytes">${formatBytes(client.bytes_out)}</td>
-              <td class="bytes">${formatBytes(client.bytes_in)}</td>
-              <td class="${speedClass}">${formatSpeed(client.speed)}</td>
-            </tr>
-          `;
-        }).join('');
+        clientsData = await res.json();
+        renderClients();
       } catch (e) { console.error('Clients fetch failed:', e); }
     }
 
