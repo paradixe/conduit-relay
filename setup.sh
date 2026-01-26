@@ -216,25 +216,14 @@ if [ "$DASHBOARD_ONLY" != "1" ]; then
     sort -u "/home/$MON_USER/.ssh/authorized_keys" -o "/home/$MON_USER/.ssh/authorized_keys"
     chown "$MON_USER:$MON_USER" "/home/$MON_USER/.ssh/authorized_keys"
   fi
-  # Sudoers for conduitmon (same as join script)
+  # Sudoers for conduitmon (limited commands, cross-distro paths)
   cat > /etc/sudoers.d/conduit-dashboard << 'SUDOEOF'
 Defaults:conduitmon !requiretty
 conduitmon ALL=(root) NOPASSWD: \
-  /bin/systemctl status conduit, \
-  /bin/systemctl start conduit, \
-  /bin/systemctl stop conduit, \
-  /bin/systemctl restart conduit, \
-  /bin/journalctl -u conduit -n 20 --no-pager, \
-  /bin/grep ExecStart /etc/systemd/system/conduit.service, \
-  /usr/sbin/tcpdump, \
-  /usr/bin/geoiplookup, \
-  /usr/bin/timeout, \
-  /usr/bin/awk, \
-  /usr/bin/cut, \
-  /usr/bin/sort, \
-  /usr/bin/uniq, \
-  /usr/bin/xargs, \
-  /bin/grep
+  /usr/bin/systemctl * conduit, /bin/systemctl * conduit, \
+  /usr/bin/journalctl -u conduit *, /bin/journalctl -u conduit *, \
+  /usr/bin/grep ExecStart /etc/systemd/system/conduit.service, /bin/grep ExecStart /etc/systemd/system/conduit.service, \
+  /usr/sbin/tcpdump *
 SUDOEOF
   chmod 440 /etc/sudoers.d/conduit-dashboard
 

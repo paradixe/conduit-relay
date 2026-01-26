@@ -559,21 +559,10 @@ echo "[2/4] Configuring sudoers for $MON_USER..."
 cat > "/etc/sudoers.d/conduit-dashboard" <<SUDOEOF
 Defaults:\${MON_USER} !requiretty
 \${MON_USER} ALL=(root) NOPASSWD: \\
-  /bin/systemctl status conduit, \\
-  /bin/systemctl start conduit, \\
-  /bin/systemctl stop conduit, \\
-  /bin/systemctl restart conduit, \\
-  /bin/journalctl -u conduit -n 20 --no-pager, \\
-  /bin/grep ExecStart /etc/systemd/system/conduit.service, \\
-  /usr/sbin/tcpdump, \\
-  /usr/bin/geoiplookup, \\
-  /usr/bin/timeout, \\
-  /usr/bin/awk, \\
-  /usr/bin/cut, \\
-  /usr/bin/sort, \\
-  /usr/bin/uniq, \\
-  /usr/bin/xargs, \\
-  /bin/grep
+  /usr/bin/systemctl * conduit, /bin/systemctl * conduit, \\
+  /usr/bin/journalctl -u conduit *, /bin/journalctl -u conduit *, \\
+  /usr/bin/grep ExecStart /etc/systemd/system/conduit.service, /bin/grep ExecStart /etc/systemd/system/conduit.service, \\
+  /usr/sbin/tcpdump *
 SUDOEOF
 chmod 440 /etc/sudoers.d/conduit-dashboard
 
