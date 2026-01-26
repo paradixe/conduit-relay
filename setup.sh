@@ -86,8 +86,14 @@ else
   fi
   echo -e "  Version: $($INSTALL_DIR/conduit --version)"
 
-  # Create data dir and service
+  # Create conduit user and data dir
+  if ! getent passwd conduit >/dev/null 2>&1; then
+    useradd -r -s /usr/sbin/nologin -d "$DATA_DIR" -M conduit
+  fi
   mkdir -p "$DATA_DIR"
+  chown conduit:conduit "$DATA_DIR"
+
+  # Service runs as non-root
   cat > /etc/systemd/system/conduit.service << EOF
 [Unit]
 Description=Conduit Relay
@@ -95,6 +101,8 @@ After=network.target
 
 [Service]
 Type=simple
+User=conduit
+Group=conduit
 ExecStart=$INSTALL_DIR/conduit start -m $MAX_CLIENTS -b $BANDWIDTH --data-dir $DATA_DIR -v
 Restart=always
 RestartSec=5
@@ -194,12 +202,48 @@ sleep 2
 
 # Auto-register this server (localhost) - skip if dashboard only
 if [ "$DASHBOARD_ONLY" != "1" ]; then
+  # Create conduitmon and add dashboard SSH key so we register with non-root user
+  MON_USER="conduitmon"
+  if ! id "$MON_USER" >/dev/null 2>&1; then
+    useradd -m -s /bin/bash "$MON_USER"
+  fi
+  install -d -m 700 -o "$MON_USER" -g "$MON_USER" "/home/$MON_USER/.ssh"
+  touch "/home/$MON_USER/.ssh/authorized_keys"
+  chown "$MON_USER:$MON_USER" "/home/$MON_USER/.ssh/authorized_keys"
+  chmod 600 "/home/$MON_USER/.ssh/authorized_keys"
+  if ! grep -qF "$(cat ~/.ssh/id_ed25519.pub)" "/home/$MON_USER/.ssh/authorized_keys" 2>/dev/null; then
+    cat ~/.ssh/id_ed25519.pub >> "/home/$MON_USER/.ssh/authorized_keys"
+    sort -u "/home/$MON_USER/.ssh/authorized_keys" -o "/home/$MON_USER/.ssh/authorized_keys"
+    chown "$MON_USER:$MON_USER" "/home/$MON_USER/.ssh/authorized_keys"
+  fi
+  # Sudoers for conduitmon (same as join script)
+  cat > /etc/sudoers.d/conduit-dashboard << 'SUDOEOF'
+Defaults:conduitmon !requiretty
+conduitmon ALL=(root) NOPASSWD: \
+  /bin/systemctl status conduit, \
+  /bin/systemctl start conduit, \
+  /bin/systemctl stop conduit, \
+  /bin/systemctl restart conduit, \
+  /bin/journalctl -u conduit -n 20 --no-pager, \
+  /bin/grep ExecStart /etc/systemd/system/conduit.service, \
+  /usr/sbin/tcpdump, \
+  /usr/bin/geoiplookup, \
+  /usr/bin/timeout, \
+  /usr/bin/awk, \
+  /usr/bin/cut, \
+  /usr/bin/sort, \
+  /usr/bin/uniq, \
+  /usr/bin/xargs, \
+  /bin/grep
+SUDOEOF
+  chmod 440 /etc/sudoers.d/conduit-dashboard
+
   LOCAL_HOSTNAME=$(hostname | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | cut -c1-20)
   [ -z "$LOCAL_HOSTNAME" ] && LOCAL_HOSTNAME="dashboard"
-  curl -sX POST "http://localhost:$PORT/api/register" \
+  curl -sX POST "http://127.0.0.1:$PORT/api/register" \
     -H "Content-Type: application/json" \
     -H "X-Join-Token: $JOIN_TOKEN" \
-    -d "{\"name\":\"$LOCAL_HOSTNAME\",\"host\":\"localhost\",\"user\":\"root\"}" >/dev/null 2>&1 || true
+    -d "{\"name\":\"$LOCAL_HOSTNAME\",\"host\":\"127.0.0.1\",\"user\":\"$MON_USER\"}" >/dev/null 2>&1 || true
 fi
 
 #

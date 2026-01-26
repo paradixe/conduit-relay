@@ -17,7 +17,7 @@ usage() {
   echo "Usage: $0 <command> [args]"
   echo ""
   echo "Commands:"
-  echo "  add <name> <ip> [user]    Add a server (default user: root)"
+  echo "  add <name> <ip> [user]    Add a server (default user: conduitmon)"
   echo "  remove <name>             Remove a server"
   echo "  list                      List all servers"
   echo "  install [name|all]        Install conduit on server(s)"
@@ -40,7 +40,9 @@ get_host() {
 }
 
 get_user() {
-  echo "$1" | cut -d: -f3
+  local u
+  u=$(echo "$1" | cut -d: -f3)
+  echo "${u:-conduitmon}"
 }
 
 all_servers() {
@@ -61,7 +63,7 @@ run_on() {
 }
 
 cmd_add() {
-  local name=$1 ip=$2 user=${3:-root}
+  local name=$1 ip=$2 user=${3:-conduitmon}
   [ -z "$name" ] || [ -z "$ip" ] && { echo "Usage: $0 add <name> <ip> [user]"; exit 1; }
 
   if get_server "$name" >/dev/null; then

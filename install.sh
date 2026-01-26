@@ -42,10 +42,14 @@ echo "Version: $($INSTALL_DIR/conduit --version)"
 MAX_CLIENTS=${MAX_CLIENTS:-200}
 BANDWIDTH=${BANDWIDTH:--1}
 
-# Create data directory
+# Create conduit user and data directory
+if ! getent passwd conduit >/dev/null 2>&1; then
+  useradd -r -s /usr/sbin/nologin -d "$DATA_DIR" -M conduit
+fi
 mkdir -p "$DATA_DIR"
+chown conduit:conduit "$DATA_DIR"
 
-# Create systemd service
+# Create systemd service (runs as non-root)
 cat > "$SERVICE_FILE" << EOF
 [Unit]
 Description=Conduit Relay
@@ -53,6 +57,8 @@ After=network.target
 
 [Service]
 Type=simple
+User=conduit
+Group=conduit
 ExecStart=$INSTALL_DIR/conduit start -m $MAX_CLIENTS -b $BANDWIDTH --data-dir $DATA_DIR -v
 Restart=always
 RestartSec=5

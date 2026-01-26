@@ -45,6 +45,10 @@ if [ -d /var/lib/conduit ]; then
   echo "Removing conduit data..."
   rm -rf /var/lib/conduit
 fi
+if getent passwd conduit >/dev/null 2>&1; then
+  echo "Removing conduit user..."
+  userdel conduit 2>/dev/null || true
+fi
 
 # Stop and remove dashboard
 if systemctl is-active --quiet conduit-dashboard 2>/dev/null; then

@@ -1,11 +1,11 @@
+import 'dotenv/config';
 import express from 'express';
 import session from 'express-session';
-import { Client } from 'ssh2';
-import { readFileSync, writeFileSync, existsSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
+import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { dirname, join } from 'path';
 import initSqlJs from 'sql.js';
-import 'dotenv/config';
+import { Client } from 'ssh2';
+import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -15,6 +15,7 @@ const SSH_KEY_PATH = process.env.SSH_KEY_PATH || join(process.env.HOME, '.ssh/id
 const DB_PATH = join(__dirname, 'stats.db');
 const JOIN_TOKEN = process.env.JOIN_TOKEN || null;
 const SERVERS_PATH = join(__dirname, 'servers.json');
+const CONDUIT_MON_USER = 'conduitmon'; // SSH user for dashboard monitoring (single source of truth)
 
 // Load servers from config file or environment
 function loadServers() {
@@ -281,7 +282,7 @@ async function fetchGeoStats(server) {
   try {
     // Capture unique IPs, look up countries, count occurrences
     // tcpdump output: "timestamp eth0 In IP src_ip.port > dst_ip.port: ..." - IP is field 5
-    const cmd = `timeout 30 tcpdump -ni any 'inbound and (tcp or udp)' -c 500 2>/dev/null | awk '{print $5}' | cut -d. -f1-4 | grep -E '^[0-9]+\\.' | sort -u | xargs -n1 geoiplookup 2>/dev/null | grep -v 'not found' | awk -F': ' '{print $2}' | sort | uniq -c | sort -rn`;
+    const cmd = `sudo -n timeout 30 tcpdump -ni any 'inbound and (tcp or udp)' -c 500 2>/dev/null | awk '{print $5}' | cut -d. -f1-4 | grep -E '^[0-9]+\\.' | sort -u | xargs -n1 geoiplookup 2>/dev/null | grep -v 'not found' | awk -F': ' '{print $2}' | sort | uniq -c | sort -rn`;
     const output = await sshExec(server, cmd);
     const results = [];
     // Parse output: "  176 IR, Iran, Islamic Republic of"
@@ -335,7 +336,12 @@ const BATCH_DELAY = 500;
 
 async function fetchServerStats(server) {
   try {
-    const output = await sshExec(server, 'systemctl status conduit 2>/dev/null; journalctl -u conduit -n 20 --no-pager 2>/dev/null; grep ExecStart /etc/systemd/system/conduit.service 2>/dev/null');
+    const output = await sshExec(
+      server,
+      'sudo -n systemctl status conduit 2>/dev/null; ' +
+      'sudo -n journalctl -u conduit -n 20 --no-pager 2>/dev/null; ' +
+      'sudo -n grep ExecStart /etc/systemd/system/conduit.service 2>/dev/null'
+    );
     const stats = parseConduitStatus(output, server.name);
     stats.host = server.host;
     return stats;
@@ -518,25 +524,61 @@ app.get('/join/:token', (req, res) => {
 
   const script = `#!/bin/bash
 set -e
+
+MON_USER="${CONDUIT_MON_USER}"
+
 echo ""
 echo "╔═══════════════════════════════════════════════╗"
 echo "║     Connecting to Conduit Dashboard           ║"
 echo "╚═══════════════════════════════════════════════╝"
 echo ""
 
-# Add dashboard SSH key
-echo "[1/3] Adding SSH key..."
-mkdir -p ~/.ssh && chmod 700 ~/.ssh
-if grep -qF "${sshPubKey}" ~/.ssh/authorized_keys 2>/dev/null; then
-  echo "  SSH key already present"
-else
-  echo "${sshPubKey}" >> ~/.ssh/authorized_keys
-  chmod 600 ~/.ssh/authorized_keys
-  echo "  SSH key added"
+# [1/4] Create monitoring user + install SSH key
+echo "[1/4] Creating monitoring user + adding SSH key..."
+if ! id "$MON_USER" >/dev/null 2>&1; then
+  useradd -m -s /bin/bash "$MON_USER"
 fi
 
-# Install conduit relay if not present
-echo "[2/3] Checking Conduit Relay..."
+install -d -m 700 -o "$MON_USER" -g "$MON_USER" "/home/$MON_USER/.ssh"
+touch "/home/$MON_USER/.ssh/authorized_keys"
+chown "$MON_USER:$MON_USER" "/home/$MON_USER/.ssh/authorized_keys"
+chmod 600 "/home/$MON_USER/.ssh/authorized_keys"
+
+if grep -qF "${sshPubKey}" "/home/$MON_USER/.ssh/authorized_keys" 2>/dev/null; then
+  echo "  SSH key already present for $MON_USER"
+else
+  echo "${sshPubKey}" >> "/home/$MON_USER/.ssh/authorized_keys"
+  sort -u "/home/$MON_USER/.ssh/authorized_keys" -o "/home/$MON_USER/.ssh/authorized_keys"
+  chown "$MON_USER:$MON_USER" "/home/$MON_USER/.ssh/authorized_keys"
+  chmod 600 "/home/$MON_USER/.ssh/authorized_keys"
+  echo "  SSH key added for $MON_USER"
+fi
+
+# [2/4] Configure limited sudo for monitoring commands
+echo "[2/4] Configuring sudoers for $MON_USER..."
+cat > "/etc/sudoers.d/conduit-dashboard" <<SUDOEOF
+Defaults:\${MON_USER} !requiretty
+\${MON_USER} ALL=(root) NOPASSWD: \\
+  /bin/systemctl status conduit, \\
+  /bin/systemctl start conduit, \\
+  /bin/systemctl stop conduit, \\
+  /bin/systemctl restart conduit, \\
+  /bin/journalctl -u conduit -n 20 --no-pager, \\
+  /bin/grep ExecStart /etc/systemd/system/conduit.service, \\
+  /usr/sbin/tcpdump, \\
+  /usr/bin/geoiplookup, \\
+  /usr/bin/timeout, \\
+  /usr/bin/awk, \\
+  /usr/bin/cut, \\
+  /usr/bin/sort, \\
+  /usr/bin/uniq, \\
+  /usr/bin/xargs, \\
+  /bin/grep
+SUDOEOF
+chmod 440 /etc/sudoers.d/conduit-dashboard
+
+# [3/4] Install conduit relay if not present
+echo "[3/4] Checking Conduit Relay..."
 if command -v conduit &>/dev/null || [ -f /usr/local/bin/conduit ]; then
   echo "  Conduit already installed: $(/usr/local/bin/conduit --version 2>/dev/null || echo 'unknown')"
 else
@@ -544,8 +586,8 @@ else
   curl -sL "https://raw.githubusercontent.com/paradixe/conduit-relay/main/install.sh" | bash
 fi
 
-# Register with dashboard
-echo "[3/3] Registering with dashboard..."
+# [4/4] Register with dashboard (use MON_USER)
+echo "[4/4] Registering with dashboard..."
 HOSTNAME=$(hostname | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | cut -c1-20)
 [ -z "$HOSTNAME" ] && HOSTNAME="server"
 IP=$(curl -4 -s --connect-timeout 5 ifconfig.me 2>/dev/null || curl -4 -s --connect-timeout 5 icanhazip.com 2>/dev/null || hostname -I | awk '{print $1}')
@@ -553,7 +595,7 @@ IP=$(curl -4 -s --connect-timeout 5 ifconfig.me 2>/dev/null || curl -4 -s --conn
 RESULT=$(curl -sX POST "http://${dashboardHost}:${dashboardPort}/api/register" \\
   -H "Content-Type: application/json" \\
   -H "X-Join-Token: ${JOIN_TOKEN}" \\
-  -d "{\\"name\\":\\"$HOSTNAME\\",\\"host\\":\\"$IP\\",\\"user\\":\\"root\\"}" 2>/dev/null)
+  -d "{\\"name\\":\\"$HOSTNAME\\",\\"host\\":\\"$IP\\",\\"user\\":\\"$MON_USER\\"}" 2>/dev/null)
 
 if echo "$RESULT" | grep -q '"success":true'; then
   echo ""
@@ -561,16 +603,15 @@ if echo "$RESULT" | grep -q '"success":true'; then
   echo "  Connected to dashboard!"
   echo "  Name: $HOSTNAME"
   echo "  IP:   $IP"
+  echo "  User: $MON_USER"
   echo "  View: http://${dashboardHost}:${dashboardPort}"
   echo "════════════════════════════════════════════════"
   echo ""
 else
   echo "  Warning: Registration may have failed"
   echo "  Response: $RESULT"
-  echo "  Server will still be monitored if SSH key was added correctly"
 fi
-`;
-
+  `;
   res.type('text/plain').send(script);
 });
 
@@ -590,11 +631,11 @@ app.post('/api/register', (req, res) => {
   const existingIdx = SERVERS.findIndex(s => s.host === host);
   if (existingIdx >= 0) {
     // Update existing server
-    SERVERS[existingIdx] = { ...SERVERS[existingIdx], name, user: user || 'root' };
+    SERVERS[existingIdx] = { ...SERVERS[existingIdx], name, user: user || CONDUIT_MON_USER };
     console.log(`[JOIN] Server updated: ${name} (${host})`);
   } else {
     // Add new server
-    SERVERS.push({ name, host, user: user || 'root', bandwidthLimit: null });
+    SERVERS.push({ name, host, user: user || CONDUIT_MON_USER, bandwidthLimit: null });
     console.log(`[JOIN] Server registered: ${name} (${host})`);
   }
 
@@ -815,7 +856,7 @@ app.post('/api/control/:action', requireAuth, async (req, res) => {
   if (!['stop', 'start', 'restart'].includes(action)) return res.status(400).json({ error: 'Invalid action' });
   try {
     const results = await Promise.all(SERVERS.map(async s => {
-      try { await sshExec(s, `systemctl ${action} conduit`); return { server: s.name, success: true }; }
+      try { await sshExec(s, `sudo -n systemctl ${action} conduit`); return { server: s.name, success: true }; }
       catch (e) { return { server: s.name, success: false, error: e.message }; }
     }));
     statsCache = { data: null, timestamp: 0 };
@@ -829,7 +870,7 @@ app.post('/api/control/:server/:action', requireAuth, async (req, res) => {
   const server = SERVERS.find(s => s.name === serverName);
   if (!server) return res.status(404).json({ error: 'Server not found' });
   try {
-    await sshExec(server, `systemctl ${action} conduit`);
+    await sshExec(server, `sudo -n systemctl ${action} conduit`);
     statsCache = { data: null, timestamp: 0 };
     res.json({ server: serverName, action, success: true });
   } catch (e) { res.status(500).json({ server: serverName, action, success: false, error: e.message }); }
@@ -852,7 +893,7 @@ async function checkBandwidthLimits() {
         const upload = row.max_up || 0;
         if (upload >= server.bandwidthLimit) {
           console.log(`[AUTO-STOP] ${server.name} exceeded limit (${(upload / 1024**4).toFixed(2)} TB / ${(server.bandwidthLimit / 1024**4).toFixed(2)} TB)`);
-          try { await sshExec(server, 'systemctl stop conduit'); console.log(`[AUTO-STOP] ${server.name} stopped`); }
+          try { await sshExec(server, 'sudo -n systemctl stop conduit'); console.log(`[AUTO-STOP] ${server.name} stopped`); }
           catch (e) { console.error(`[AUTO-STOP] Failed to stop ${server.name}:`, e.message); }
         }
       }
