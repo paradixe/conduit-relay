@@ -17,9 +17,15 @@ BANDWIDTH=${BANDWIDTH:--1}
 # Usage: curl ... | DASHBOARD_ONLY=1 bash
 DASHBOARD_ONLY=${DASHBOARD_ONLY:-0}
 
-# Binary sources (official Psiphon releases)
-PRIMARY_URL="https://github.com/ssmirr/conduit/releases/latest/download/conduit-linux-amd64"
-FALLBACK_URL="https://raw.githubusercontent.com/paradixe/conduit-relay/main/bin/conduit-linux-amd64"
+# Binary source (ssmirr builds)
+ARCH=$(uname -m)
+case "$ARCH" in
+  x86_64)  BINARY="conduit-linux-amd64" ;;
+  aarch64) BINARY="conduit-linux-arm64" ;;
+  armv7l)  BINARY="conduit-linux-arm64" ;;
+  *)       echo -e "${RED}Unsupported architecture: $ARCH${NC}"; exit 1 ;;
+esac
+BINARY_URL="https://github.com/ssmirr/conduit/releases/latest/download/$BINARY"
 
 # Colors
 GREEN='\033[0;32m'
@@ -66,19 +72,23 @@ else
   apt-get update -qq && apt-get install -y -qq geoip-bin curl git >/dev/null 2>&1 || true
 
   # Download binary
-  if curl -sL "$PRIMARY_URL" -o "$INSTALL_DIR/conduit" && [ -s "$INSTALL_DIR/conduit" ]; then
-    echo "  Downloaded from Psiphon"
-  elif curl -sL "$FALLBACK_URL" -o "$INSTALL_DIR/conduit" && [ -s "$INSTALL_DIR/conduit" ]; then
-    echo "  Downloaded from fallback"
-  else
-    echo -e "${RED}Failed to download conduit${NC}"
+  echo "  Downloading $BINARY..."
+  if ! curl -fsSL "$BINARY_URL" -o "$INSTALL_DIR/conduit"; then
+    echo -e "${RED}Failed to download conduit from $BINARY_URL${NC}"
+    exit 1
+  fi
+  if [ ! -s "$INSTALL_DIR/conduit" ]; then
+    echo -e "${RED}Downloaded file is empty${NC}"
     exit 1
   fi
   chmod +x "$INSTALL_DIR/conduit"
 
-  # Verify
+  # Verify binary runs
   if ! "$INSTALL_DIR/conduit" --version >/dev/null 2>&1; then
     echo -e "${RED}Binary verification failed${NC}"
+    echo -e "${RED}  - Check architecture: $(uname -m)${NC}"
+    echo -e "${RED}  - Try running: $INSTALL_DIR/conduit --version${NC}"
+    rm -f "$INSTALL_DIR/conduit"
     exit 1
   fi
   echo -e "  Version: $($INSTALL_DIR/conduit --version)"
@@ -139,9 +149,22 @@ npm install --silent 2>/dev/null
 echo "  Dashboard installed to $DASHBOARD_DIR"
 
 #
-# Step 4: Setup SSH Key
+# Step 4: Setup SSH Key + Server
 #
-echo -e "${YELLOW}[4/6] Setting up SSH key...${NC}"
+echo -e "${YELLOW}[4/6] Setting up SSH...${NC}"
+
+# Ensure SSH server is installed and running (needed for localhost monitoring)
+if ! command -v sshd &>/dev/null; then
+  echo "  Installing OpenSSH server..."
+  apt-get install -y -qq openssh-server >/dev/null 2>&1
+fi
+if ! systemctl is-active --quiet ssh 2>/dev/null && ! systemctl is-active --quiet sshd 2>/dev/null; then
+  echo "  Starting SSH server..."
+  systemctl enable ssh 2>/dev/null || systemctl enable sshd 2>/dev/null || true
+  systemctl start ssh 2>/dev/null || systemctl start sshd 2>/dev/null || true
+fi
+
+# Generate SSH key if needed
 if [ ! -f ~/.ssh/id_ed25519 ]; then
   mkdir -p ~/.ssh && chmod 700 ~/.ssh
   ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -N "" -q
@@ -155,6 +178,11 @@ if ! grep -qF "$(cat ~/.ssh/id_ed25519.pub)" ~/.ssh/authorized_keys 2>/dev/null;
   cat ~/.ssh/id_ed25519.pub >> ~/.ssh/authorized_keys
   chmod 600 ~/.ssh/authorized_keys
   echo "  Added key to authorized_keys"
+fi
+
+# Verify SSH is accessible on localhost
+if ! ssh -o BatchMode=yes -o ConnectTimeout=3 -o StrictHostKeyChecking=no localhost true 2>/dev/null; then
+  echo -e "  ${YELLOW}Warning: SSH to localhost failed. Dashboard may not monitor this server.${NC}"
 fi
 
 #

@@ -6,6 +6,15 @@ set -e
 REPO="ssmirr/conduit"
 DASHBOARD_REPO="paradixe/conduit-relay"
 
+# Detect architecture
+ARCH=$(uname -m)
+case "$ARCH" in
+  x86_64)  BINARY="conduit-linux-amd64" ;;
+  aarch64) BINARY="conduit-linux-arm64" ;;
+  armv7l)  BINARY="conduit-linux-arm64" ;;
+  *)       echo "Unsupported architecture: $ARCH"; exit 1 ;;
+esac
+
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -34,7 +43,7 @@ if [ "$HAS_RELAY" = true ]; then
 
   if [ -n "$LATEST" ] && [ "$CURRENT" != "$LATEST" ]; then
     echo -e "${YELLOW}Updating relay...${NC}"
-    curl -sL "https://github.com/$REPO/releases/download/$LATEST/conduit-linux-amd64" -o /usr/local/bin/conduit.new
+    curl -fsSL "https://github.com/$REPO/releases/download/$LATEST/$BINARY" -o /usr/local/bin/conduit.new
     if [ -s /usr/local/bin/conduit.new ]; then
       chmod +x /usr/local/bin/conduit.new
       systemctl stop conduit 2>/dev/null || true

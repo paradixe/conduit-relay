@@ -706,9 +706,8 @@ app.put('/api/servers/:name', requireAuth, (req, res) => {
 // UPDATE SYSTEM - Check for updates and update all servers
 // ═══════════════════════════════════════════════════════════════════
 
-// Official Psiphon releases
-const PRIMARY_BINARY_URL = 'https://github.com/ssmirr/conduit/releases/latest/download/conduit-linux-amd64';
-const FALLBACK_BINARY_URL = 'https://raw.githubusercontent.com/paradixe/conduit-relay/main/bin/conduit-linux-amd64';
+// Binary source (ssmirr builds)
+const BINARY_BASE_URL = 'https://github.com/ssmirr/conduit/releases/latest/download';
 
 let cachedLatestVersion = null;
 let versionCacheTime = 0;
@@ -808,17 +807,21 @@ app.post('/api/update', requireAuth, async (req, res) => {
         console.log(`[UPDATE] Updating ${server.name}...`);
         const output = await sshExec(server, `
           set -e
-          if curl -sL "${PRIMARY_BINARY_URL}" -o /usr/local/bin/conduit.new && [ -s /usr/local/bin/conduit.new ]; then
-            echo "Downloaded from Psiphon"
-          elif curl -sL "${FALLBACK_BINARY_URL}" -o /usr/local/bin/conduit.new && [ -s /usr/local/bin/conduit.new ]; then
-            echo "Downloaded from fallback"
-          else
-            echo "Download failed" && exit 1
+          ARCH=$(uname -m)
+          case "$ARCH" in
+            x86_64)  BINARY="conduit-linux-amd64" ;;
+            aarch64) BINARY="conduit-linux-arm64" ;;
+            armv7l)  BINARY="conduit-linux-arm64" ;;
+            *)       echo "Unsupported arch: $ARCH" && exit 1 ;;
+          esac
+          URL="${BINARY_BASE_URL}/$BINARY"
+          if ! curl -fsSL "$URL" -o /usr/local/bin/conduit.new || [ ! -s /usr/local/bin/conduit.new ]; then
+            echo "Download failed from $URL" && exit 1
           fi
           chmod +x /usr/local/bin/conduit.new
-          systemctl stop conduit
-          mv /usr/local/bin/conduit.new /usr/local/bin/conduit
-          systemctl start conduit
+          sudo -n systemctl stop conduit
+          sudo -n mv /usr/local/bin/conduit.new /usr/local/bin/conduit
+          sudo -n systemctl start conduit
           /usr/local/bin/conduit --version
         `);
         const match = output.match(/version\s+(\S+)/i);

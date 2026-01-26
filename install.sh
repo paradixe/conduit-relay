@@ -5,22 +5,28 @@ INSTALL_DIR="/usr/local/bin"
 DATA_DIR="/var/lib/conduit"
 SERVICE_FILE="/etc/systemd/system/conduit.service"
 
-# Binary sources
-PRIMARY_URL="https://github.com/ssmirr/conduit/releases/latest/download/conduit-linux-amd64"
-FALLBACK_URL="https://raw.githubusercontent.com/paradixe/conduit-relay/main/bin/conduit-linux-amd64"
+# Detect architecture
+ARCH=$(uname -m)
+case "$ARCH" in
+  x86_64)  BINARY="conduit-linux-amd64" ;;
+  aarch64) BINARY="conduit-linux-arm64" ;;
+  armv7l)  BINARY="conduit-linux-arm64" ;;
+  *)       echo "Unsupported architecture: $ARCH"; exit 1 ;;
+esac
+BINARY_URL="https://github.com/ssmirr/conduit/releases/latest/download/$BINARY"
 
 # Install dependencies
 echo "Installing dependencies..."
 apt-get update -qq && apt-get install -y -qq geoip-bin >/dev/null 2>&1 || true
 
 # Download binary
-echo "Downloading conduit..."
-if curl -sL "$PRIMARY_URL" -o "$INSTALL_DIR/conduit" && [ -s "$INSTALL_DIR/conduit" ]; then
-  echo "Downloaded from Psiphon"
-elif curl -sL "$FALLBACK_URL" -o "$INSTALL_DIR/conduit" && [ -s "$INSTALL_DIR/conduit" ]; then
-  echo "Downloaded from fallback"
-else
-  echo "Failed to download"
+echo "Downloading $BINARY..."
+if ! curl -fsSL "$BINARY_URL" -o "$INSTALL_DIR/conduit"; then
+  echo "Failed to download from $BINARY_URL"
+  exit 1
+fi
+if [ ! -s "$INSTALL_DIR/conduit" ]; then
+  echo "Downloaded file is empty"
   exit 1
 fi
 chmod +x "$INSTALL_DIR/conduit"
@@ -28,6 +34,9 @@ chmod +x "$INSTALL_DIR/conduit"
 # Verify binary works
 if ! "$INSTALL_DIR/conduit" --version >/dev/null 2>&1; then
   echo "Binary verification failed"
+  echo "  - Architecture: $ARCH"
+  echo "  - Try running: $INSTALL_DIR/conduit --version"
+  rm -f "$INSTALL_DIR/conduit"
   exit 1
 fi
 echo "Version: $($INSTALL_DIR/conduit --version)"
