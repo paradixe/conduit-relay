@@ -724,7 +724,7 @@ app.get('/api/version', requireAuth, async (req, res) => {
 
 // POST /api/update - Update conduit on all servers (or specific ones)
 app.post('/api/update', requireAuth, async (req, res) => {
-  const { servers: targetServers } = req.body;
+  const { servers: targetServers } = req.body || {};
 
   try {
     // Determine which servers to update
