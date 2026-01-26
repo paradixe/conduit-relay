@@ -1,0 +1,25 @@
+FROM node:20-alpine
+
+WORKDIR /opt/conduit-dashboard
+
+# Install dependencies first (better caching)
+COPY dashboard/package*.json ./
+RUN npm ci --production
+
+# Copy application code
+COPY dashboard/ .
+
+# Create non-root user
+RUN addgroup -g 1000 dashboard && \
+    adduser -u 1000 -G dashboard -s /bin/sh -D dashboard && \
+    mkdir -p /opt/conduit-dashboard/data && \
+    chown -R dashboard:dashboard /opt/conduit-dashboard
+
+USER dashboard
+
+EXPOSE 3000
+
+# Data volume for persistence (stats.db, servers.json)
+VOLUME ["/opt/conduit-dashboard/data"]
+
+CMD ["node", "server.js"]

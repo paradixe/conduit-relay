@@ -1,0 +1,48 @@
+version: '3.8'
+
+# Conduit Relay + Dashboard
+# Usage: docker compose up -d
+
+services:
+  relay:
+    image: ghcr.io/ssmirr/conduit/conduit:latest
+    container_name: conduit-relay
+    restart: unless-stopped
+    command:
+      - start
+      - -m
+      - "${MAX_CLIENTS:-200}"
+      - -b
+      - "${BANDWIDTH:--1}"
+      - --data-dir
+      - /data
+      - -v
+    volumes:
+      - relay-data:/data
+    # Conduit uses random UDP ports for WebRTC, needs host networking
+    network_mode: host
+
+  dashboard:
+    image: ghcr.io/paradixe/conduit-dashboard:latest
+    container_name: conduit-dashboard
+    restart: unless-stopped
+    environment:
+      - PORT=${PORT:-3000}
+      - DASHBOARD_PASSWORD=${DASHBOARD_PASSWORD}
+      - SESSION_SECRET=${SESSION_SECRET}
+      - JOIN_TOKEN=${JOIN_TOKEN}
+      - SSH_KEY_PATH=/ssh/id_ed25519
+    volumes:
+      - dashboard-data:/opt/conduit-dashboard/data
+      - ${SSH_KEY_PATH:-~/.ssh/id_ed25519}:/ssh/id_ed25519:ro
+      - ${SSH_KEY_PATH:-~/.ssh/id_ed25519}.pub:/ssh/id_ed25519.pub:ro
+    ports:
+      - "${PORT:-3000}:3000"
+    depends_on:
+      - relay
+
+volumes:
+  relay-data:
+    name: conduit-relay-data
+  dashboard-data:
+    name: conduit-dashboard-data

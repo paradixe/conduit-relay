@@ -62,6 +62,40 @@ run_on() {
   ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new "${user}@${host}" "$cmd"
 }
 
+# Detect if server runs Docker or native conduit
+detect_mode() {
+  local name=$1
+  local output
+  output=$(run_on "$name" 'docker ps --filter name=conduit-relay --format "{{.Names}}" 2>/dev/null; systemctl is-active conduit 2>/dev/null' 2>/dev/null || echo "")
+  if echo "$output" | grep -q "conduit-relay"; then
+    echo "docker"
+  elif echo "$output" | grep -q "active"; then
+    echo "native"
+  else
+    echo "unknown"
+  fi
+}
+
+# Get logs command based on mode
+get_logs_cmd() {
+  local mode=$1
+  if [ "$mode" = "docker" ]; then
+    echo 'docker logs conduit-relay --tail 50 2>&1'
+  else
+    echo 'journalctl -u conduit -n 50 --no-pager 2>/dev/null'
+  fi
+}
+
+# Get control command based on mode
+get_control_cmd() {
+  local action=$1 mode=$2
+  if [ "$mode" = "docker" ]; then
+    echo "docker $action conduit-relay"
+  else
+    echo "sudo -n systemctl $action conduit"
+  fi
+}
+
 cmd_add() {
   local name=$1 ip=$2 user=${3:-conduitmon}
   [ -z "$name" ] || [ -z "$ip" ] && { echo "Usage: $0 add <name> <ip> [user]"; exit 1; }
@@ -243,8 +277,9 @@ cmd_start() {
   [ "$target" = "all" ] && servers=$(all_servers) || servers=$target
 
   for name in $servers; do
-    echo -e "${YELLOW}[$name]${NC} Starting..."
-    run_on "$name" 'systemctl start conduit' && echo -e "${GREEN}[$name]${NC} Started"
+    local mode=$(detect_mode "$name")
+    echo -e "${YELLOW}[$name]${NC} Starting ($mode)..."
+    run_on "$name" "$(get_control_cmd start "$mode")" && echo -e "${GREEN}[$name]${NC} Started"
   done
 }
 
@@ -254,15 +289,21 @@ cmd_stop() {
   [ "$target" = "all" ] && servers=$(all_servers) || servers=$target
 
   for name in $servers; do
-    echo -e "${YELLOW}[$name]${NC} Stopping..."
-    run_on "$name" 'systemctl stop conduit' && echo -e "${GREEN}[$name]${NC} Stopped"
+    local mode=$(detect_mode "$name")
+    echo -e "${YELLOW}[$name]${NC} Stopping ($mode)..."
+    run_on "$name" "$(get_control_cmd stop "$mode")" && echo -e "${GREEN}[$name]${NC} Stopped"
   done
 }
 
 cmd_logs() {
   local name=$1
   [ -z "$name" ] && { echo "Usage: $0 logs <name>"; exit 1; }
-  run_on "$name" 'journalctl -u conduit -f'
+  local mode=$(detect_mode "$name")
+  if [ "$mode" = "docker" ]; then
+    run_on "$name" 'docker logs conduit-relay -f'
+  else
+    run_on "$name" 'journalctl -u conduit -f'
+  fi
 }
 
 cmd_dashboard() {

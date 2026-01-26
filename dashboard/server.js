@@ -334,19 +334,68 @@ async function fetchAllGeoStats() {
 const BATCH_SIZE = 3;
 const BATCH_DELAY = 500;
 
+// Cache for server deployment mode (docker vs native)
+const serverModeCache = new Map();
+
+// Detect if conduit runs in Docker or native on a server
+async function detectConduitMode(server) {
+  // Check cache first (valid for 5 minutes)
+  const cached = serverModeCache.get(server.name);
+  if (cached && Date.now() - cached.timestamp < 300000) {
+    return cached.mode;
+  }
+
+  try {
+    // Single command to detect mode: check Docker first, then systemd
+    const output = await sshExec(server,
+      'docker ps --filter name=conduit-relay --format "{{.Names}}" 2>/dev/null || echo ""; ' +
+      'systemctl is-active conduit 2>/dev/null || echo ""'
+    );
+
+    let mode = 'unknown';
+    if (output.includes('conduit-relay')) {
+      mode = 'docker';
+    } else if (output.includes('active')) {
+      mode = 'native';
+    }
+
+    serverModeCache.set(server.name, { mode, timestamp: Date.now() });
+    return mode;
+  } catch {
+    return 'unknown';
+  }
+}
+
+// Get stats command based on deployment mode
+function getStatsCommand(mode) {
+  if (mode === 'docker') {
+    return 'docker logs conduit-relay --tail 50 2>&1 | grep -E "STATS|Connected|started" | tail -20; ' +
+           'docker inspect conduit-relay --format "{{.State.Status}}" 2>/dev/null || echo "stopped"';
+  }
+  // Native (systemd)
+  return 'sudo -n systemctl status conduit 2>/dev/null; ' +
+         'sudo -n journalctl -u conduit -n 20 --no-pager 2>/dev/null; ' +
+         'sudo -n grep ExecStart /etc/systemd/system/conduit.service 2>/dev/null';
+}
+
+// Get service control command based on mode
+function getControlCommand(action, mode) {
+  if (mode === 'docker') {
+    return `docker ${action} conduit-relay`;
+  }
+  return `sudo -n systemctl ${action} conduit`;
+}
+
 async function fetchServerStats(server) {
   try {
-    const output = await sshExec(
-      server,
-      'sudo -n systemctl status conduit 2>/dev/null; ' +
-      'sudo -n journalctl -u conduit -n 20 --no-pager 2>/dev/null; ' +
-      'sudo -n grep ExecStart /etc/systemd/system/conduit.service 2>/dev/null'
-    );
+    const mode = await detectConduitMode(server);
+    const output = await sshExec(server, getStatsCommand(mode));
     const stats = parseConduitStatus(output, server.name);
     stats.host = server.host;
+    stats.mode = mode; // Track deployment mode
     return stats;
   } catch (err) {
-    return { name: server.name, host: server.host, status: 'error', clients: 0, upload: '0 B', download: '0 B', uptime: 'N/A', maxClients: null, bandwidth: null, error: err.message };
+    return { name: server.name, host: server.host, status: 'error', clients: 0, upload: '0 B', download: '0 B', uptime: 'N/A', maxClients: null, bandwidth: null, mode: 'unknown', error: err.message };
   }
 }
 
@@ -526,6 +575,7 @@ app.get('/join/:token', (req, res) => {
 set -e
 
 MON_USER="${CONDUIT_MON_USER}"
+DEPLOY_MODE=""
 
 echo ""
 echo "╔═══════════════════════════════════════════════╗"
@@ -533,8 +583,23 @@ echo "║     Connecting to Conduit Dashboard           ║"
 echo "╚═══════════════════════════════════════════════╝"
 echo ""
 
-# [1/4] Create monitoring user + install SSH key
-echo "[1/4] Creating monitoring user + adding SSH key..."
+# Detect deployment mode
+if command -v docker &>/dev/null && docker info &>/dev/null 2>&1; then
+  if docker compose version &>/dev/null 2>&1; then
+    DEPLOY_MODE="docker"
+    echo "Docker detected - using containerized deployment"
+  else
+    echo "Docker found but compose plugin missing - using native deployment"
+    DEPLOY_MODE="native"
+  fi
+else
+  DEPLOY_MODE="native"
+  echo "Using native deployment"
+fi
+echo ""
+
+# [1/5] Create monitoring user + install SSH key
+echo "[1/5] Creating monitoring user + adding SSH key..."
 if ! id "$MON_USER" >/dev/null 2>&1; then
   useradd -m -s /bin/bash "$MON_USER"
 fi
@@ -554,8 +619,8 @@ else
   echo "  SSH key added for $MON_USER"
 fi
 
-# [2/4] Configure limited sudo for monitoring commands
-echo "[2/4] Configuring sudoers for $MON_USER..."
+# [2/5] Configure limited sudo for monitoring commands
+echo "[2/5] Configuring sudoers for $MON_USER..."
 cat > "/etc/sudoers.d/conduit-dashboard" <<SUDOEOF
 Defaults:\${MON_USER} !requiretty
 \${MON_USER} ALL=(root) NOPASSWD: \\
@@ -566,39 +631,76 @@ Defaults:\${MON_USER} !requiretty
 SUDOEOF
 chmod 440 /etc/sudoers.d/conduit-dashboard
 
-# [3/4] Install conduit relay if not present
-echo "[3/4] Checking Conduit Relay..."
-if command -v conduit &>/dev/null || [ -f /usr/local/bin/conduit ]; then
-  echo "  Conduit already installed: $(/usr/local/bin/conduit --version 2>/dev/null || echo 'unknown')"
+# [3/5] Add monitoring user to docker group (if Docker mode)
+if [ "$DEPLOY_MODE" = "docker" ]; then
+  echo "[3/5] Adding $MON_USER to docker group..."
+  usermod -aG docker "$MON_USER" 2>/dev/null || true
 else
-  echo "  Installing Conduit Relay..."
-  curl -sL "https://raw.githubusercontent.com/paradixe/conduit-relay/main/install.sh" | bash
+  echo "[3/5] Skipping docker group (native mode)"
 fi
 
-# [4/4] Register with dashboard (use MON_USER)
-echo "[4/4] Registering with dashboard..."
-HOSTNAME=$(hostname | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | cut -c1-20)
-[ -z "$HOSTNAME" ] && HOSTNAME="server"
-IP=$(curl -4 -s --connect-timeout 5 ifconfig.me 2>/dev/null || curl -4 -s --connect-timeout 5 icanhazip.com 2>/dev/null || hostname -I | awk '{print $1}')
+# [4/5] Install/Start conduit relay
+echo "[4/5] Setting up Conduit Relay ($DEPLOY_MODE mode)..."
 
-RESULT=$(curl -sX POST "http://${dashboardHost}:${dashboardPort}/api/register" \\
+if [ "$DEPLOY_MODE" = "docker" ]; then
+  # Docker deployment
+  CONDUIT_DIR="/opt/conduit"
+  mkdir -p "$CONDUIT_DIR"
+  cd "$CONDUIT_DIR"
+
+  # Check if already running
+  if docker ps --filter name=conduit-relay --format "{{.Names}}" 2>/dev/null | grep -q conduit-relay; then
+    echo "  Conduit relay container already running"
+  else
+    # Download relay-only compose file
+    curl -sLo docker-compose.yml "https://raw.githubusercontent.com/paradixe/conduit-relay/main/docker-compose.relay-only.yml"
+
+    # Create .env with defaults
+    cat > .env <<ENVEOF
+MAX_CLIENTS=200
+BANDWIDTH=-1
+ENVEOF
+
+    # Pull and start
+    docker compose pull
+    docker compose up -d
+    echo "  Conduit relay container started"
+  fi
+else
+  # Native deployment
+  if command -v conduit &>/dev/null || [ -f /usr/local/bin/conduit ]; then
+    echo "  Conduit already installed: \$(/usr/local/bin/conduit --version 2>/dev/null || echo 'unknown')"
+  else
+    echo "  Installing Conduit Relay..."
+    curl -sL "https://raw.githubusercontent.com/paradixe/conduit-relay/main/install.sh" | bash
+  fi
+fi
+
+# [5/5] Register with dashboard (use MON_USER)
+echo "[5/5] Registering with dashboard..."
+HOSTNAME=\$(hostname | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | cut -c1-20)
+[ -z "\$HOSTNAME" ] && HOSTNAME="server"
+IP=\$(curl -4 -s --connect-timeout 5 ifconfig.me 2>/dev/null || curl -4 -s --connect-timeout 5 icanhazip.com 2>/dev/null || hostname -I | awk '{print \$1}')
+
+RESULT=\$(curl -sX POST "http://${dashboardHost}:${dashboardPort}/api/register" \\
   -H "Content-Type: application/json" \\
   -H "X-Join-Token: ${JOIN_TOKEN}" \\
-  -d "{\\"name\\":\\"$HOSTNAME\\",\\"host\\":\\"$IP\\",\\"user\\":\\"$MON_USER\\"}" 2>/dev/null)
+  -d "{\\"name\\":\\"\$HOSTNAME\\",\\"host\\":\\"\$IP\\",\\"user\\":\\"$MON_USER\\"}" 2>/dev/null)
 
-if echo "$RESULT" | grep -q '"success":true'; then
+if echo "\$RESULT" | grep -q '"success":true'; then
   echo ""
   echo "════════════════════════════════════════════════"
   echo "  Connected to dashboard!"
-  echo "  Name: $HOSTNAME"
-  echo "  IP:   $IP"
+  echo "  Name: \$HOSTNAME"
+  echo "  IP:   \$IP"
   echo "  User: $MON_USER"
+  echo "  Mode: \$DEPLOY_MODE"
   echo "  View: http://${dashboardHost}:${dashboardPort}"
   echo "════════════════════════════════════════════════"
   echo ""
 else
   echo "  Warning: Registration may have failed"
-  echo "  Response: $RESULT"
+  echo "  Response: \$RESULT"
 fi
   `;
   res.type('text/plain').send(script);
@@ -805,28 +907,43 @@ app.post('/api/update', requireAuth, async (req, res) => {
     for (const server of serversToUpdate) {
       try {
         console.log(`[UPDATE] Updating ${server.name}...`);
-        const output = await sshExec(server, `
-          set -e
-          ARCH=$(uname -m)
-          case "$ARCH" in
-            x86_64)  BINARY="conduit-linux-amd64" ;;
-            aarch64) BINARY="conduit-linux-arm64" ;;
-            armv7l)  BINARY="conduit-linux-arm64" ;;
-            *)       echo "Unsupported arch: $ARCH" && exit 1 ;;
-          esac
-          URL="${BINARY_BASE_URL}/$BINARY"
-          if ! curl -fsSL "$URL" -o /usr/local/bin/conduit.new || [ ! -s /usr/local/bin/conduit.new ]; then
-            echo "Download failed from $URL" && exit 1
-          fi
-          chmod +x /usr/local/bin/conduit.new
-          sudo -n systemctl stop conduit
-          sudo -n mv /usr/local/bin/conduit.new /usr/local/bin/conduit
-          sudo -n systemctl start conduit
-          /usr/local/bin/conduit --version
-        `);
+        const mode = await detectConduitMode(server);
+
+        let output;
+        if (mode === 'docker') {
+          // Docker update: pull new image and recreate container
+          output = await sshExec(server, `
+            set -e
+            cd ~/conduit 2>/dev/null || cd /opt/conduit 2>/dev/null || true
+            docker compose pull 2>/dev/null || docker pull ghcr.io/ssmirr/conduit/conduit:latest
+            docker compose up -d 2>/dev/null || docker restart conduit-relay
+            docker logs conduit-relay --tail 5 2>&1 | grep -i version || echo "updated"
+          `);
+        } else {
+          // Native update: download binary and restart service
+          output = await sshExec(server, `
+            set -e
+            ARCH=$(uname -m)
+            case "$ARCH" in
+              x86_64)  BINARY="conduit-linux-amd64" ;;
+              aarch64) BINARY="conduit-linux-arm64" ;;
+              armv7l)  BINARY="conduit-linux-arm64" ;;
+              *)       echo "Unsupported arch: $ARCH" && exit 1 ;;
+            esac
+            URL="${BINARY_BASE_URL}/$BINARY"
+            if ! curl -fsSL "$URL" -o /usr/local/bin/conduit.new || [ ! -s /usr/local/bin/conduit.new ]; then
+              echo "Download failed from $URL" && exit 1
+            fi
+            chmod +x /usr/local/bin/conduit.new
+            sudo -n systemctl stop conduit
+            sudo -n mv /usr/local/bin/conduit.new /usr/local/bin/conduit
+            sudo -n systemctl start conduit
+            /usr/local/bin/conduit --version
+          `);
+        }
         const match = output.match(/version\s+(\S+)/i);
-        results.push({ server: server.name, success: true, version: match ? match[1] : 'updated' });
-        console.log(`[UPDATE] ${server.name} updated successfully`);
+        results.push({ server: server.name, success: true, version: match ? match[1] : 'updated', mode });
+        console.log(`[UPDATE] ${server.name} updated successfully (${mode})`);
       } catch (e) {
         results.push({ server: server.name, success: false, error: e.message });
         console.error(`[UPDATE] ${server.name} failed:`, e.message);
@@ -874,8 +991,11 @@ app.post('/api/control/:action', requireAuth, async (req, res) => {
   if (!['stop', 'start', 'restart'].includes(action)) return res.status(400).json({ error: 'Invalid action' });
   try {
     const results = await Promise.all(SERVERS.map(async s => {
-      try { await sshExec(s, `sudo -n systemctl ${action} conduit`); return { server: s.name, success: true }; }
-      catch (e) { return { server: s.name, success: false, error: e.message }; }
+      try {
+        const mode = await detectConduitMode(s);
+        await sshExec(s, getControlCommand(action, mode));
+        return { server: s.name, success: true, mode };
+      } catch (e) { return { server: s.name, success: false, error: e.message }; }
     }));
     statsCache = { data: null, timestamp: 0 };
     res.json({ action, results });
@@ -888,9 +1008,10 @@ app.post('/api/control/:server/:action', requireAuth, async (req, res) => {
   const server = SERVERS.find(s => s.name === serverName);
   if (!server) return res.status(404).json({ error: 'Server not found' });
   try {
-    await sshExec(server, `sudo -n systemctl ${action} conduit`);
+    const mode = await detectConduitMode(server);
+    await sshExec(server, getControlCommand(action, mode));
     statsCache = { data: null, timestamp: 0 };
-    res.json({ server: serverName, action, success: true });
+    res.json({ server: serverName, action, success: true, mode });
   } catch (e) { res.status(500).json({ server: serverName, action, success: false, error: e.message }); }
 });
 
@@ -911,8 +1032,11 @@ async function checkBandwidthLimits() {
         const upload = row.max_up || 0;
         if (upload >= server.bandwidthLimit) {
           console.log(`[AUTO-STOP] ${server.name} exceeded limit (${(upload / 1024**4).toFixed(2)} TB / ${(server.bandwidthLimit / 1024**4).toFixed(2)} TB)`);
-          try { await sshExec(server, 'sudo -n systemctl stop conduit'); console.log(`[AUTO-STOP] ${server.name} stopped`); }
-          catch (e) { console.error(`[AUTO-STOP] Failed to stop ${server.name}:`, e.message); }
+          try {
+            const mode = await detectConduitMode(server);
+            await sshExec(server, getControlCommand('stop', mode));
+            console.log(`[AUTO-STOP] ${server.name} stopped (${mode})`);
+          } catch (e) { console.error(`[AUTO-STOP] Failed to stop ${server.name}:`, e.message); }
         }
       }
       stmt.free();

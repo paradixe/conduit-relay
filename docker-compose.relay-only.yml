@@ -1,0 +1,27 @@
+version: '3.8'
+
+# Conduit Relay Only (for servers joining a dashboard)
+# Usage: docker compose up -d
+
+services:
+  relay:
+    image: ghcr.io/ssmirr/conduit/conduit:latest
+    container_name: conduit-relay
+    restart: unless-stopped
+    command:
+      - start
+      - -m
+      - "${MAX_CLIENTS:-200}"
+      - -b
+      - "${BANDWIDTH:--1}"
+      - --data-dir
+      - /data
+      - -v
+    volumes:
+      - relay-data:/data
+    # Conduit uses random UDP ports for WebRTC, needs host networking
+    network_mode: host
+
+volumes:
+  relay-data:
+    name: conduit-relay-data
