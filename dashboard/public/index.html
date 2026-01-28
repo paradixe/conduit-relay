@@ -38,18 +38,22 @@
       font-size: 0.8125rem;
       color: #525252;
     }
+    .header-times {
+      display: flex;
+      flex-direction: column;
+      gap: 0.125rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+    }
+    .header-times #lastUpdate {
+      color: #525252;
+    }
+    .header-times #iranTime {
+      color: #737373;
+      font-size: 0.6875rem;
+    }
     .header-meta a { color: #525252; text-decoration: none; transition: color 0.15s; }
     .header-meta a:hover { color: #e5e5e5; }
-    .pulse {
-      width: 6px; height: 6px;
-      background: #22c55e;
-      border-radius: 50%;
-      animation: pulse 2s infinite;
-    }
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.4; }
-    }
 
     /* Summary bar */
     .summary {
@@ -97,6 +101,7 @@
       font-size: 0.875rem;
       font-weight: 500;
       color: #a3a3a3;
+      font-family: 'JetBrains Mono', monospace;
     }
     .charts-grid { display: flex; flex-direction: column; gap: 1rem; margin-bottom: 2rem; }
     #trafficChart, #clientsChart { height: 200px !important; }
@@ -110,9 +115,28 @@
       border: 1px solid #1a1a1a;
       border-radius: 8px;
       padding: 1.25rem;
-      transition: border-color 0.15s;
+      transition: border-color 0.15s, box-shadow 0.15s;
     }
     .node:hover { border-color: #262626; }
+    
+    /* Subtle status rings */
+    .node-status-connected,
+    .node-status-active {
+      box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.2);
+    }
+    .node-status-running {
+      box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.2);
+    }
+    .node-status-waiting {
+      box-shadow: 0 0 0 1px rgba(234, 179, 8, 0.2);
+    }
+    .node-status-stopped {
+      box-shadow: 0 0 0 1px rgba(82, 82, 82, 0.2);
+    }
+    .node-status-offline,
+    .node-status-error {
+      box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.2);
+    }
 
     .node-header {
       display: flex;
@@ -203,12 +227,13 @@
       background: none;
       border: none;
       padding: 0;
+      font-family: 'JetBrains Mono', monospace;
       font-size: 0.6875rem;
       font-weight: 500;
       cursor: pointer;
       transition: opacity 0.15s;
       text-transform: uppercase;
-      letter-spacing: 0.03em;
+      letter-spacing: 0.05em;
     }
     .node-btn-stop { color: #525252; }
     .node-btn-stop:hover { color: #ef4444; }
@@ -221,36 +246,71 @@
     .node-btn:disabled { opacity: 0.3; cursor: not-allowed; }
 
     /* Update banner */
+    #updateBanner {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      margin-bottom: 1.5rem;
+    }
     .update-banner {
       background: linear-gradient(90deg, rgba(59,130,246,0.15), rgba(34,197,94,0.15));
       border: 1px solid rgba(59,130,246,0.3);
       border-radius: 8px;
       padding: 0.75rem 1rem;
-      margin-bottom: 1.5rem;
       display: flex;
       justify-content: space-between;
       align-items: center;
       animation: updatePulse 2s infinite;
     }
+    .update-banner.dashboard-update {
+      background: linear-gradient(90deg, rgba(139,92,246,0.15), rgba(59,130,246,0.15));
+      border-color: rgba(139,92,246,0.3);
+    }
     @keyframes updatePulse {
       0%, 100% { border-color: rgba(59,130,246,0.3); }
       50% { border-color: rgba(34,197,94,0.5); }
     }
-    .update-banner-text { font-size: 0.875rem; color: #e5e5e5; }
-    .update-banner-text span { color: #22c55e; font-weight: 600; }
+    .update-banner-text {
+      font-size: 0.875rem;
+      color: #e5e5e5;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .update-banner-text span {
+      color: #22c55e;
+      font-weight: 600;
+    }
+    .update-banner-actions {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+    }
     .update-banner-btn {
       background: #3b82f6;
       border: none;
       color: #fff;
       padding: 0.5rem 1rem;
       border-radius: 6px;
+      font-family: 'JetBrains Mono', monospace;
       font-size: 0.75rem;
       font-weight: 500;
+      font-family: 'JetBrains Mono', monospace;
       cursor: pointer;
       transition: background 0.15s;
     }
     .update-banner-btn:hover { background: #2563eb; }
     .update-banner-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .update-banner-dismiss {
+      background: none;
+      border: none;
+      color: #737373;
+      padding: 0.5rem;
+      font-size: 1.25rem;
+      line-height: 1;
+      cursor: pointer;
+      transition: color 0.15s;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .update-banner-dismiss:hover { color: #a3a3a3; }
 
     /* Loading */
     .loading {
@@ -279,24 +339,81 @@
     .bandwidth-title { font-size: 0.875rem; font-weight: 500; color: #a3a3a3; display: flex; align-items: center; gap: 0.5rem; }
     .bandwidth-title::before { content: '▶'; font-size: 0.625rem; transition: transform 0.2s; }
     .bandwidth-section.open .bandwidth-title::before { transform: rotate(90deg); }
-    .bandwidth-content { display: none; padding: 0 1.5rem 1.5rem; }
+    .bandwidth-content { display: none; padding: 1.5rem; }
     .bandwidth-section.open .bandwidth-content { display: block; }
-    .bandwidth-bars { display: flex; flex-direction: column; gap: 0.75rem; }
-    .bandwidth-row { display: flex; align-items: center; gap: 1rem; }
-    .bandwidth-label { width: 80px; font-size: 0.75rem; color: #737373; }
-    .bandwidth-bar-wrap { flex: 1; height: 8px; background: #262626; border-radius: 4px; overflow: hidden; }
-    .bandwidth-bar { height: 100%; border-radius: 4px; transition: width 0.3s; }
-    .bandwidth-bar.safe { background: #22c55e; }
-    .bandwidth-bar.warning { background: #eab308; }
-    .bandwidth-bar.danger { background: #ef4444; }
-    .bandwidth-value { width: 120px; font-size: 0.75rem; color: #a3a3a3; text-align: right; font-family: 'JetBrains Mono', monospace; }
-    .bandwidth-eta { width: 90px; font-size: 0.7rem; color: #525252; text-align: right; }
+    .bandwidth-bars { display: flex; flex-direction: column; gap: 1rem; }
+    .bandwidth-row {
+      display: grid;
+      grid-template-columns: 140px 1fr auto auto;
+      align-items: center;
+      gap: 1.5rem;
+      padding: 1rem 1.25rem;
+      background: #161616;
+      border: 1px solid #1a1a1a;
+      border-radius: 6px;
+      transition: all 0.2s;
+    }
+    .bandwidth-row:hover {
+      background: #1a1a1a;
+      border-color: #262626;
+    }
+    .bandwidth-label {
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: #e5e5e5;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .bandwidth-bar-wrap {
+      height: 12px;
+      background: #262626;
+      border-radius: 6px;
+      overflow: hidden;
+      position: relative;
+    }
+    .bandwidth-bar {
+      height: 100%;
+      border-radius: 6px;
+      transition: width 0.3s ease;
+      position: relative;
+    }
+    .bandwidth-bar.safe {
+      background: linear-gradient(90deg, #22c55e, #16a34a);
+    }
+    .bandwidth-bar.warning {
+      background: linear-gradient(90deg, #eab308, #ca8a04);
+    }
+    .bandwidth-bar.danger {
+      background: linear-gradient(90deg, #ef4444, #dc2626);
+    }
+    .bandwidth-value {
+      font-size: 0.8125rem;
+      color: #fff;
+      text-align: right;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+    .bandwidth-eta {
+      font-size: 0.75rem;
+      color: #737373;
+      text-align: right;
+      font-family: 'JetBrains Mono', monospace;
+      white-space: nowrap;
+      min-width: 100px;
+    }
     .bandwidth-eta.warn { color: #eab308; }
     .bandwidth-eta.danger { color: #ef4444; }
 
     /* Clients section */
     .client-count { font-size: 0.75rem; color: #525252; font-family: 'JetBrains Mono', monospace; }
-    .clients-table-wrap { overflow-x: auto; max-height: 400px; overflow-y: auto; }
+    .clients-table-wrap { 
+      overflow-x: auto; 
+      max-height: 400px; 
+      overflow-y: auto;
+      scrollbar-width: none; /* Firefox */
+      -ms-overflow-style: none; /* IE/Edge */
+    }
+    .clients-table-wrap::-webkit-scrollbar { display: none; } /* Chrome/Safari */
     .clients-table { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
     .clients-table th { 
       text-align: left; 
@@ -336,6 +453,7 @@
       border-radius: 6px;
       font-size: 0.75rem;
       font-weight: 500;
+      font-family: 'JetBrains Mono', monospace;
       cursor: pointer;
       transition: all 0.15s;
     }
@@ -455,6 +573,7 @@
       padding: 0.375rem 0.5rem;
       cursor: pointer;
       font-size: 0.75rem;
+      font-family: 'JetBrains Mono', monospace;
       transition: all 0.15s;
       flex-shrink: 0;
     }
@@ -473,6 +592,7 @@
       border-radius: 6px;
       font-size: 0.8125rem;
       font-weight: 500;
+      font-family: 'JetBrains Mono', monospace;
       cursor: pointer;
       transition: all 0.15s;
       border: none;
@@ -491,16 +611,61 @@
 
     /* Settings button in header */
     .settings-btn {
-      background: none;
-      border: 1px solid #262626;
+      background: rgba(34, 197, 94, 0.1);
+      border: 1px solid #22c55e;
       border-radius: 6px;
-      color: #525252;
+      color: #22c55e;
       padding: 0.375rem 0.625rem;
       cursor: pointer;
       font-size: 0.875rem;
-      transition: all 0.15s;
+      font-family: 'JetBrains Mono', monospace;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      animation: settingsPulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
     }
-    .settings-btn:hover { border-color: #404040; color: #a3a3a3; }
+    .settings-btn::before {
+      content: '';
+      position: absolute;
+      inset: -2px;
+      border-radius: 8px;
+      padding: 2px;
+      background: linear-gradient(45deg, rgba(34, 197, 94, 0.3), rgba(16, 163, 74, 0.3), rgba(34, 197, 94, 0.3));
+      background-size: 200% 200%;
+      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      opacity: 0;
+      animation: settingsRotate 3s linear infinite;
+      transition: opacity 0.3s;
+    }
+    .settings-btn:hover {
+      background: rgba(34, 197, 94, 0.2);
+      border-color: #16a34a;
+      color: #16a34a;
+      transform: scale(1.05);
+    }
+    .settings-btn:hover::before {
+      opacity: 1;
+    }
+    @keyframes settingsPulse {
+      0%, 100% {
+        box-shadow: 0 0 6px rgba(34, 197, 94, 0.3), 0 0 12px rgba(34, 197, 94, 0.15), inset 0 0 8px rgba(34, 197, 94, 0.05);
+      }
+      50% {
+        box-shadow: 0 0 10px rgba(34, 197, 94, 0.5), 0 0 20px rgba(34, 197, 94, 0.25), inset 0 0 12px rgba(34, 197, 94, 0.1);
+      }
+    }
+    @keyframes settingsRotate {
+      0% {
+        background-position: 0% 50%;
+      }
+      50% {
+        background-position: 100% 50%;
+      }
+      100% {
+        background-position: 0% 50%;
+      }
+    }
 
     /* Empty state */
     .empty-state {
@@ -518,6 +683,7 @@
       border-radius: 6px;
       font-size: 0.8125rem;
       font-weight: 500;
+      font-family: 'JetBrains Mono', monospace;
       cursor: pointer;
     }
     .empty-state button:hover { background: #16a34a; }
@@ -528,8 +694,10 @@
     <header>
       <div class="logo">conduit<span>.</span></div>
       <div class="header-meta">
-        <div class="pulse"></div>
-        <span id="lastUpdate">-</span>
+        <div class="header-times">
+          <span id="lastUpdate">-</span>
+          <span id="iranTime">-</span>
+        </div>
         <button class="settings-btn" onclick="Wizard.showSettings()" title="Settings">⚙</button>
         <a href="/logout">Logout</a>
       </div>
@@ -640,7 +808,23 @@
     const formatBytes = b => {
       if (b === 0) return '0 B';
       const i = Math.floor(Math.log(b) / Math.log(1024));
-      return (b / Math.pow(1024, i)).toFixed(1) + ' ' + ['B','KB','MB','GB','TB'][i];
+      return (b / Math.pow(1024, i)).toFixed(1) + ' ' + ['B','KB','MB','GB','TB','PB'][i];
+    };
+
+    const formatMB = mb => {
+      if (mb === 0) return '0 MB';
+      if (mb < 1024) return mb.toFixed(1) + ' MB';
+      if (mb < 1024 * 1024) return (mb / 1024).toFixed(1) + ' GB';
+      if (mb < 1024 * 1024 * 1024) return (mb / (1024 * 1024)).toFixed(1) + ' TB';
+      return (mb / (1024 * 1024 * 1024)).toFixed(1) + ' PB';
+    };
+
+    const formatNumber = n => {
+      if (n === 0) return '0';
+      if (n < 1000) return n.toString();
+      if (n < 1000000) return (n / 1000).toFixed(0) + 'k';
+      if (n < 1000000000) return (n / 1000000).toFixed(1) + 'M';
+      return (n / 1000000000).toFixed(1) + 'B';
     };
 
     // Clipboard helper that works on HTTP (fallback for non-secure contexts)
@@ -668,7 +852,7 @@
     };
 
     const renderNode = s => `
-      <div class="node" data-server="${s.name}">
+      <div class="node node-status-${s.status}" data-server="${s.name}">
         <div class="node-header">
           <div>
             <div class="node-name">${s.name}</div>
@@ -720,6 +904,8 @@
               statusEl.textContent = s.status;
               statusEl.className = `status status-${s.status}`;
             }
+            // Always ensure node has correct status class for ring
+            node.className = node.className.replace(/node-status-\w+/g, '') + ` node-status-${s.status}`;
 
             const fields = { connecting: s.connecting || 0, clients: s.clients, uptime: s.uptime, upload: s.upload, download: s.download };
             for (const [field, val] of Object.entries(fields)) {
@@ -752,6 +938,7 @@
         document.getElementById('totalUpload').textContent = formatBytes(data.reduce((a, s) => a + parseBytes(s.upload), 0));
         document.getElementById('totalDownload').textContent = formatBytes(data.reduce((a, s) => a + parseBytes(s.download), 0));
         document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+        document.getElementById('iranTime').textContent = new Date().toLocaleTimeString('en-US', { timeZone: 'Asia/Tehran', hour12: true });
       } catch (e) {
         document.getElementById('nodes').innerHTML = `<div class="loading">Error: ${e.message}</div>`;
       }
@@ -760,6 +947,19 @@
     let trafficChart = null;
     let clientsChart = null;
     const defaultColors = ['#3b82f6', '#8b5cf6', '#22c55e', '#f59e0b', '#ef4444', '#06b6d4', '#ec4899', '#10b981', '#f97316'];
+
+    // Smooth data using moving average
+    function smoothData(data, windowSize = 3) {
+      const smoothed = [];
+      for (let i = 0; i < data.length; i++) {
+        const start = Math.max(0, i - Math.floor(windowSize / 2));
+        const end = Math.min(data.length, i + Math.ceil(windowSize / 2));
+        const window = data.slice(start, end);
+        const avg = window.reduce((sum, val) => sum + val, 0) / window.length;
+        smoothed.push(avg);
+      }
+      return smoothed;
+    }
 
     async function fetchHistory() {
       try {
@@ -780,20 +980,38 @@
         const labels = times.map(t => new Date(+t).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}));
         const servers = [...new Set(data.map(r => r.server))];
 
-        // === TRAFFIC CHART (original style with fills) ===
-        const trafficDatasets = servers.map((s, i) => ({
-          label: s,
-          data: times.map(t => grouped[t].serverTraffic[s] || 0),
-          borderColor: defaultColors[i % defaultColors.length],
-          backgroundColor: defaultColors[i % defaultColors.length] + '20',
-          borderWidth: 1.5,
-          fill: true,
-          tension: 0.3,
-          pointRadius: 0,
-        }));
-
+        // === TRAFFIC CHART (gradient fills) ===
         const ctx1 = document.getElementById('trafficChart').getContext('2d');
         if (trafficChart) trafficChart.destroy();
+        
+        // Create gradient fill function for each dataset
+        const createGradientFill = (color, chartArea) => {
+          const gradient = ctx1.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+          gradient.addColorStop(0, color + '40'); // More opaque at top
+          gradient.addColorStop(0.5, color + '20'); // Medium opacity in middle
+          gradient.addColorStop(1, color + '00'); // Transparent at bottom
+          return gradient;
+        };
+
+        const trafficDatasets = servers.map((s, i) => {
+          const color = defaultColors[i % defaultColors.length];
+          return {
+            label: s,
+            data: times.map(t => grouped[t].serverTraffic[s] || 0),
+            borderColor: color,
+            backgroundColor: (context) => {
+              const chart = context.chart;
+              const {chartArea} = chart;
+              if (!chartArea) return color + '20';
+              return createGradientFill(color, chartArea);
+            },
+            borderWidth: 1.5,
+            fill: true,
+            tension: 0.3,
+            pointRadius: 0,
+          };
+        });
+
         trafficChart = new Chart(ctx1, {
           type: 'line',
           data: { labels, datasets: trafficDatasets },
@@ -801,28 +1019,97 @@
             responsive: true,
             maintainAspectRatio: false,
             interaction: { intersect: false, mode: 'index' },
-            plugins: { legend: { display: true, position: 'top', align: 'end', labels: { color: '#525252', boxWidth: 8, padding: 16, font: { size: 11 } } } },
+            plugins: {
+              legend: { 
+                display: true, 
+                position: 'top', 
+                align: 'end',
+                padding: { top: 8, bottom: 4 },
+                labels: { 
+                  color: '#a3a3a3',
+                  boxWidth: 12,
+                  boxHeight: 12,
+                  padding: 12,
+                  font: { 
+                    family: "'JetBrains Mono', monospace",
+                    size: 10,
+                    weight: '500'
+                  },
+                  usePointStyle: false,
+                  borderRadius: 3
+                }
+              },
+              tooltip: {
+                callbacks: {
+                  label: (ctx) => {
+                    return `${ctx.dataset.label}: ${formatMB(ctx.raw)}`;
+                  }
+                }
+              }
+            },
             scales: {
-              x: { ticks: { color: '#404040', maxTicksLimit: 8, font: { size: 10 } }, grid: { color: '#1a1a1a' }, border: { color: '#1a1a1a' } },
-              y: { ticks: { color: '#404040', callback: v => v.toFixed(0) + ' MB', font: { size: 10 } }, grid: { color: '#1a1a1a' }, border: { color: '#1a1a1a' } }
+              x: { 
+                ticks: { 
+                  color: '#737373', 
+                  maxTicksLimit: 8, 
+                  font: { 
+                    family: "'JetBrains Mono', monospace",
+                    size: 10 
+                  }
+                }, 
+                grid: { color: '#1a1a1a' }, 
+                border: { color: '#1a1a1a' } 
+              },
+              y: { 
+                ticks: { 
+                  color: '#737373', 
+                  callback: v => formatMB(v), 
+                  font: { 
+                    family: "'JetBrains Mono', monospace",
+                    size: 10 
+                  }
+                }, 
+                grid: { color: '#1a1a1a' }, 
+                border: { color: '#1a1a1a' } 
+              }
             }
           }
         });
 
-        // === CLIENTS CHART (same style) ===
-        const clientsDatasets = servers.map((s, i) => ({
-          label: s,
-          data: times.map(t => grouped[t].serverClients[s] || 0),
-          borderColor: defaultColors[i % defaultColors.length],
-          backgroundColor: defaultColors[i % defaultColors.length] + '20',
-          borderWidth: 1.5,
-          fill: true,
-          tension: 0.3,
-          pointRadius: 0,
-        }));
-
+        // === CLIENTS CHART (smoothed with gradient fills) ===
         const ctx2 = document.getElementById('clientsChart').getContext('2d');
         if (clientsChart) clientsChart.destroy();
+        
+        // Create gradient fill function for each dataset
+        const createClientsGradientFill = (color, chartArea) => {
+          const gradient = ctx2.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+          gradient.addColorStop(0, color + '40'); // More opaque at top
+          gradient.addColorStop(0.5, color + '20'); // Medium opacity in middle
+          gradient.addColorStop(1, color + '00'); // Transparent at bottom
+          return gradient;
+        };
+
+        const clientsDatasets = servers.map((s, i) => {
+          const rawData = times.map(t => grouped[t].serverClients[s] || 0);
+          const smoothedData = smoothData(rawData, 5); // 5-point moving average
+          const color = defaultColors[i % defaultColors.length];
+          return {
+            label: s,
+            data: smoothedData,
+            borderColor: color,
+            backgroundColor: (context) => {
+              const chart = context.chart;
+              const {chartArea} = chart;
+              if (!chartArea) return color + '20';
+              return createClientsGradientFill(color, chartArea);
+            },
+            borderWidth: 1.5,
+            fill: true,
+            tension: 0.5, // Increased from 0.3 for smoother curves
+            pointRadius: 0,
+          };
+        });
+
         clientsChart = new Chart(ctx2, {
           type: 'line',
           data: { labels, datasets: clientsDatasets },
@@ -830,10 +1117,51 @@
             responsive: true,
             maintainAspectRatio: false,
             interaction: { intersect: false, mode: 'index' },
-            plugins: { legend: { display: true, position: 'top', align: 'end', labels: { color: '#525252', boxWidth: 8, padding: 16, font: { size: 11 } } } },
+            plugins: { 
+              legend: { 
+                display: true, 
+                position: 'top', 
+                align: 'end',
+                padding: { top: 8, bottom: 4 },
+                labels: { 
+                  color: '#a3a3a3',
+                  boxWidth: 12,
+                  boxHeight: 12,
+                  padding: 12,
+                  font: { 
+                    family: "'JetBrains Mono', monospace",
+                    size: 10,
+                    weight: '500'
+                  },
+                  usePointStyle: false,
+                  borderRadius: 3
+                }
+              } 
+            },
             scales: {
-              x: { ticks: { color: '#404040', maxTicksLimit: 8, font: { size: 10 } }, grid: { color: '#1a1a1a' }, border: { color: '#1a1a1a' } },
-              y: { ticks: { color: '#404040', font: { size: 10 } }, grid: { color: '#1a1a1a' }, border: { color: '#1a1a1a' } }
+              x: { 
+                ticks: { 
+                  color: '#737373', 
+                  maxTicksLimit: 8, 
+                  font: { 
+                    family: "'JetBrains Mono', monospace",
+                    size: 10 
+                  }
+                }, 
+                grid: { color: '#1a1a1a' }, 
+                border: { color: '#1a1a1a' } 
+              },
+              y: { 
+                ticks: { 
+                  color: '#737373', 
+                  font: { 
+                    family: "'JetBrains Mono', monospace",
+                    size: 10 
+                  }
+                }, 
+                grid: { color: '#1a1a1a' }, 
+                border: { color: '#1a1a1a' } 
+              }
             }
           }
         });
@@ -851,25 +1179,47 @@
 
         // Take top 15 countries, sorted by bytes (bandwidth)
         const top = data.slice(0, 15);
-        // Labels include country name + IP count
-        const labels = top.map(r => `${r.country_name} (${r.count} IPs)`);
+        // Store country names and IP counts separately for custom formatting
+        const countryNames = top.map(r => r.country_name);
+        const ipCounts = top.map(r => formatNumber(r.count));
         const bytes = top.map(r => r.bytes || 0);
         const counts = top.map(r => r.count || 0);
 
-        // Color IR (Iran) in green, others in blue
-        const colors = top.map(r => r.country_code === 'IR' ? '#22c55e' : '#3b82f6');
-
         const ctx = document.getElementById('geoChart').getContext('2d');
         if (geoChart) geoChart.destroy();
+        
+        // Create beautiful multi-colored green gradient function for Iran
+        const createIranGradient = (chartArea) => {
+          const gradient = ctx.createLinearGradient(chartArea.left, 0, chartArea.right, 0);
+          gradient.addColorStop(0, '#10b981');    // emerald-500
+          gradient.addColorStop(0.2, '#22c55e');  // green-500
+          gradient.addColorStop(0.4, '#34d399');  // emerald-400
+          gradient.addColorStop(0.6, '#4ade80');  // green-400
+          gradient.addColorStop(0.8, '#22c55e');  // green-500
+          gradient.addColorStop(1, '#10b981');    // emerald-500
+          return gradient;
+        };
+
         geoChart = new Chart(ctx, {
           type: 'bar',
           data: {
-            labels,
+            labels: countryNames,
             datasets: [{
               label: 'Bandwidth',
               data: bytes,
-              backgroundColor: colors,
-              borderRadius: 4,
+              backgroundColor: (context) => {
+                const chart = context.chart;
+                const {ctx, chartArea} = chart;
+                if (!chartArea) return '#3b82f6';
+                
+                const index = context.dataIndex;
+                if (top[index].country_code === 'IR') {
+                  return createIranGradient(chartArea);
+                }
+                return '#3b82f6';
+              },
+              borderRadius: 6,
+              borderSkipped: false,
               // Store counts for tooltip access
               counts: counts,
             }]
@@ -881,10 +1231,16 @@
             plugins: {
               legend: { display: false },
               tooltip: {
+                backgroundColor: 'rgba(17, 17, 17, 0.95)',
+                borderColor: '#262626',
+                borderWidth: 1,
+                padding: 12,
+                titleFont: { family: "'JetBrains Mono', monospace", size: 11, weight: '500' },
+                bodyFont: { family: "'JetBrains Mono', monospace", size: 11 },
                 callbacks: {
                   label: (ctx) => {
                     const count = ctx.dataset.counts ? ctx.dataset.counts[ctx.dataIndex] : 0;
-                    return `${formatBytes(ctx.raw)} from ${count} unique IPs`;
+                    return `${formatBytes(ctx.raw)} from ${count.toLocaleString()} unique IPs`;
                   }
                 }
               }
@@ -892,15 +1248,31 @@
             scales: {
               x: {
                 ticks: { 
-                  color: '#404040', 
-                  font: { size: 10 },
-                  callback: v => formatBytes(v)
+                  color: '#737373', 
+                  font: { family: "'JetBrains Mono', monospace", size: 11 },
+                  callback: v => formatBytes(v),
+                  padding: 8
                 },
-                grid: { color: '#1a1a1a' },
-                border: { color: '#1a1a1a' }
+                grid: { 
+                  color: '#1a1a1a',
+                  drawBorder: false
+                },
+                border: { display: false }
               },
               y: {
-                ticks: { color: '#a3a3a3', font: { size: 11 } },
+                ticks: { 
+                  color: '#a3a3a3', 
+                  font: { family: "'JetBrains Mono', monospace", size: 11 },
+                  padding: 12,
+                  callback: function(value, index) {
+                    const country = countryNames[index];
+                    const ipCount = ipCounts[index];
+                    // Elegant format: Country with IP count on same line, separated by middle dot
+                    return `${country} · ${ipCount}`;
+                  },
+                  maxRotation: 0,
+                  minRotation: 0
+                },
                 grid: { display: false },
                 border: { color: '#1a1a1a' }
               }
@@ -1186,7 +1558,7 @@
                   </label>
                 </div>
                 <span style="font-size:0.6875rem;color:#525252;margin-top:0.5rem;display:block">Changes will restart the conduit service</span>
-                <button onclick="saveConduitConfig('${serverName}')" style="margin-top:0.75rem;background:#3b82f6;border:none;color:#fff;padding:0.5rem 1rem;border-radius:6px;cursor:pointer;font-size:0.75rem;width:100%">Apply & Restart Conduit</button>
+                <button onclick="saveConduitConfig('${serverName}')" style="margin-top:0.75rem;background:#3b82f6;border:none;color:#fff;padding:0.5rem 1rem;border-radius:6px;cursor:pointer;font-size:0.75rem;width:100%;font-family:'JetBrains Mono',monospace">Apply & Restart Conduit</button>
               </div>
               
               <label style="display:block;margin-bottom:1rem">
@@ -1205,8 +1577,8 @@
               </label>
             </div>
             <div style="padding:1rem 1.25rem;border-top:1px solid #1a1a1a;display:flex;justify-content:space-between">
-              <button onclick="deleteNode('${serverName}')" style="background:rgba(239,68,68,0.15);border:none;color:#ef4444;padding:0.5rem 1rem;border-radius:6px;cursor:pointer;font-size:0.8125rem">Delete</button>
-              <button onclick="saveNode('${serverName}')" style="background:#22c55e;border:none;color:#000;padding:0.5rem 1rem;border-radius:6px;cursor:pointer;font-weight:500;font-size:0.8125rem">Save Dashboard Settings</button>
+              <button onclick="deleteNode('${serverName}')" style="background:rgba(239,68,68,0.15);border:none;color:#ef4444;padding:0.5rem 1rem;border-radius:6px;cursor:pointer;font-size:0.8125rem;font-family:'JetBrains Mono',monospace">Delete</button>
+              <button onclick="saveNode('${serverName}')" style="background:#22c55e;border:none;color:#000;padding:0.5rem 1rem;border-radius:6px;cursor:pointer;font-weight:500;font-size:0.8125rem;font-family:'JetBrains Mono',monospace">Save Dashboard Settings</button>
             </div>
           </div>
         </div>
@@ -1294,6 +1666,42 @@
     }
 
     // Update system
+    function getDismissedRelayVersion() {
+      return localStorage.getItem('dismissedRelayVersion') || null;
+    }
+    
+    function setDismissedRelayVersion(version) {
+      localStorage.setItem('dismissedRelayVersion', version);
+    }
+    
+    function getDismissedDashboardVersion() {
+      return localStorage.getItem('dismissedDashboardVersion') || null;
+    }
+    
+    function setDismissedDashboardVersion(version) {
+      localStorage.setItem('dismissedDashboardVersion', version);
+    }
+    
+    function dismissRelayUpdate(version) {
+      setDismissedRelayVersion(version);
+      const banner = document.querySelector('.update-banner:not(.dashboard-update)');
+      if (banner) banner.remove();
+      const updateBanner = document.getElementById('updateBanner');
+      if (updateBanner && !updateBanner.querySelector('.update-banner')) {
+        updateBanner.style.display = 'none';
+      }
+    }
+    
+    function dismissDashboardUpdate(version) {
+      setDismissedDashboardVersion(version);
+      const banner = document.querySelector('.update-banner.dashboard-update');
+      if (banner) banner.remove();
+      const updateBanner = document.getElementById('updateBanner');
+      if (updateBanner && !updateBanner.querySelector('.update-banner')) {
+        updateBanner.style.display = 'none';
+      }
+    }
+
     async function checkForUpdates() {
       try {
         const res = await fetch('/api/version');
@@ -1304,26 +1712,34 @@
         let bannerHTML = '';
 
         // Relay update
-        if (data.updateAvailable && data.serversNeedingUpdate?.length > 0) {
+        const dismissedRelayVersion = getDismissedRelayVersion();
+        if (data.updateAvailable && data.serversNeedingUpdate?.length > 0 && data.latest !== dismissedRelayVersion) {
           const count = data.serversNeedingUpdate.length;
           bannerHTML += `
             <div class="update-banner">
               <div class="update-banner-text">
                 Relay update: <span>${data.latest}</span> - ${count} server${count > 1 ? 's' : ''} need${count === 1 ? 's' : ''} update
               </div>
-              <button class="update-banner-btn" onclick="updateAllServers()">Update All</button>
+              <div class="update-banner-actions">
+                <button class="update-banner-btn" onclick="updateAllServers()">Update All</button>
+                <button class="update-banner-dismiss" onclick="dismissRelayUpdate('${data.latest}')" title="Dismiss">×</button>
+              </div>
             </div>
           `;
         }
 
         // Dashboard update
-        if (data.dashboard?.updateAvailable) {
+        const dismissedDashboardVersion = getDismissedDashboardVersion();
+        if (data.dashboard?.updateAvailable && data.dashboard.latest !== dismissedDashboardVersion) {
           bannerHTML += `
             <div class="update-banner dashboard-update">
               <div class="update-banner-text">
                 Dashboard update: <span>${data.dashboard.local}</span> → <span>${data.dashboard.latest}</span>
               </div>
-              <button class="update-banner-btn" onclick="updateDashboard()">Update Dashboard</button>
+              <div class="update-banner-actions">
+                <button class="update-banner-btn" onclick="updateDashboard()">Update Dashboard</button>
+                <button class="update-banner-dismiss" onclick="dismissDashboardUpdate('${data.dashboard.latest}')" title="Dismiss">×</button>
+              </div>
             </div>
           `;
         }
