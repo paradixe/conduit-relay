@@ -1297,12 +1297,13 @@ app.post('/api/update', requireAuth, async (req, res) => {
         let output;
         if (mode === 'docker') {
           // Docker update: pull new image and recreate container
+          const container = getContainerName(server.name);
           output = await sshExec(server, `
             set -e
             cd ~/conduit 2>/dev/null || cd /opt/conduit 2>/dev/null || true
             docker compose pull 2>/dev/null || docker pull ghcr.io/ssmirr/conduit/conduit:latest
-            docker compose up -d 2>/dev/null || docker restart conduit-relay
-            docker logs conduit-relay --tail 5 2>&1 | grep -i version || echo "updated"
+            docker compose up -d 2>/dev/null || docker restart ${container}
+            docker logs ${container} --tail 5 2>&1 | grep -i version || echo "updated"
           `);
         } else {
           // Native update: download binary and restart service
