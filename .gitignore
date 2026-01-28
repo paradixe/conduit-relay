@@ -6,3 +6,6 @@ servers.json
 
 # Local development
 conduit/
+dashboard/stats.db
+dashboard/servers.json
+dashboard/.env
