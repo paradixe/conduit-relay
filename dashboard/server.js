@@ -927,9 +927,10 @@ if [ "$DEPLOY_MODE" = "docker" ]; then
   mkdir -p "$CONDUIT_DIR"
   cd "$CONDUIT_DIR"
 
-  # Check if already running
-  if docker ps --filter name=conduit-relay --format "{{.Names}}" 2>/dev/null | grep -q conduit-relay; then
-    echo "  Conduit relay container already running"
+  # Check if already running (our conduit-relay OR conduit-manager's conduit)
+  EXISTING_CONTAINER=\$(docker ps --format "{{.Names}}" 2>/dev/null | grep -E "^conduit(-relay)?\$" | head -1)
+  if [ -n "\$EXISTING_CONTAINER" ]; then
+    echo "  Conduit container already running: \$EXISTING_CONTAINER"
   else
     # Download relay-only compose file
     curl -sLo docker-compose.yml "https://raw.githubusercontent.com/paradixe/conduit-relay/main/docker-compose.relay-only.yml"
