@@ -168,13 +168,15 @@ PUBLIC_IP=$(curl -4s --connect-timeout 5 ifconfig.me 2>/dev/null || curl -4s --c
 # ════════════════════════════════════════════════════════════════
 
 echo ""
-echo -e "${YELLOW}[4/5] HTTPS Setup${NC}"
-echo -e "  If you have a domain pointing to this server, we can set up HTTPS."
+echo -e "${YELLOW}[4/5] HTTPS Setup - Valid Domain${NC}"
+echo -e "  If you have a domain pointing to this server, we can set up a valid HTTPS for your domain."
 echo -e "  ${CYAN}Press Enter to skip, or type your domain:${NC}"
 read -r DOMAIN < /dev/tty
 
 DASHBOARD_URL="http://$PUBLIC_IP:3000"
 COMPOSE_PROFILES=""
+CURL_FLAGS="-sL"
+ENABLE_HTTPS="false"
 
 if [ -n "$DOMAIN" ]; then
   echo "  Setting up HTTPS for $DOMAIN..."
@@ -189,10 +191,27 @@ CADDYEOF
 
   DASHBOARD_URL="https://$DOMAIN"
   COMPOSE_PROFILES="--profile https"
+  CURL_FLAGS="-sL"
+  ENABLE_HTTPS="false"
 
   echo -e "  ${GREEN}HTTPS will be configured automatically${NC}"
 else
-  echo "  Skipping HTTPS (using HTTP on port 3000)"
+  echo "  Skipped domain setup"
+  echo ""
+  echo -e "${YELLOW}Self-Signed SSL Certificate${NC}"
+  echo -e "  Although you don't have a valid domain, you can use a self-signed"
+  echo -e "  certificate for better security for administration tasks."
+  echo ""
+  read -r -p "Enable self-signed SSL? [y/N]: " USE_SELFSIGNED < /dev/tty
+  
+  if [[ "$USE_SELFSIGNED" =~ ^[Yy]$ ]]; then
+    echo "  Self-signed SSL will be enabled"
+    DASHBOARD_URL="https://$PUBLIC_IP:3000"
+    CURL_FLAGS="-skL"
+    ENABLE_HTTPS="true"
+  else
+    echo "  Using HTTP (no encryption)"
+  fi
 fi
 
 # Create .env file
@@ -201,6 +220,7 @@ cat > "$CONDUIT_DIR/.env" << EOF
 DASHBOARD_PASSWORD=$PASSWORD
 SESSION_SECRET=$SESSION_SECRET
 JOIN_TOKEN=$JOIN_TOKEN
+ENABLE_HTTPS=$ENABLE_HTTPS
 
 # Domain for HTTPS (leave empty for HTTP-only)
 DOMAIN=$DOMAIN
@@ -264,6 +284,8 @@ fi
 # Build join URL based on what's accessible
 if [ -n "$DOMAIN" ]; then
   JOIN_URL="https://$DOMAIN/join/$JOIN_TOKEN"
+elif [ "$ENABLE_HTTPS" = true ]; then
+  JOIN_URL="https://$PUBLIC_IP:3000/join/$JOIN_TOKEN"
 else
   JOIN_URL="http://$PUBLIC_IP:3000/join/$JOIN_TOKEN"
 fi
@@ -290,13 +312,13 @@ echo ""
 echo -e "${GREEN}${BOLD}════════════════════════════════════════════════════════════${NC}"
 echo -e "${BOLD}  To add other servers, run this on each:${NC}"
 echo ""
-echo -e "  ${CYAN}curl -sL \"$JOIN_URL\" | sudo bash${NC}"
+echo -e "  ${CYAN}curl $CURL_FLAGS \"$JOIN_URL\" | sudo bash${NC}"
 echo ""
 echo -e "${GREEN}════════════════════════════════════════════════════════════${NC}"
 echo ""
 echo -e "  ${CYAN}Useful commands:${NC}"
 echo "    cd $CONDUIT_DIR"
-echo "    docker compose logs -f              # View logs"
-echo "    docker compose pull && docker compose $COMPOSE_PROFILES up -d  # Update"
-echo "    docker compose down                 # Stop"
+echo "    docker compose logs -f                                         # View logs"
+echo "    docker compose pull && docker compose $COMPOSE_PROFILES up -d                   # Update"
+echo "    docker compose down                                            # Stop"
 echo ""

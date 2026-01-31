@@ -34,6 +34,7 @@ services:
       - DASHBOARD_PASSWORD=${DASHBOARD_PASSWORD}
       - SESSION_SECRET=${SESSION_SECRET}
       - JOIN_TOKEN=${JOIN_TOKEN}
+      - ENABLE_HTTPS=${ENABLE_HTTPS}
       # SSH_KEY_PATH is set by entrypoint after copying keys
     volumes:
       - dashboard-data:/opt/conduit-dashboard/data
