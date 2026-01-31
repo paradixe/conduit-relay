@@ -1,17 +1,22 @@
 import 'dotenv/config';
 import express from 'express';
 import session from 'express-session';
+import https from 'https';
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { dirname, join } from 'path';
 import initSqlJs from 'sql.js';
 import { Client } from 'ssh2';
 import { fileURLToPath } from 'url';
+import selfsigned from 'selfsigned';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 3000;
+const ENABLE_HTTPS = process.env.ENABLE_HTTPS === 'true';
 const PASSWORD = process.env.DASHBOARD_PASSWORD || 'changeme';
 const SSH_KEY_PATH = process.env.SSH_KEY_PATH || join(process.env.HOME, '.ssh/id_ed25519');
+const SSL_KEY_PATH = process.env.SSL_KEY_PATH || join(__dirname, 'key.pem');
+const SSL_CERT_PATH = process.env.SSL_CERT_PATH || join(__dirname, 'cert.pem');
 const DB_PATH = join(__dirname, 'stats.db');
 const JOIN_TOKEN = process.env.JOIN_TOKEN || null;
 const SERVERS_PATH = join(__dirname, 'servers.json');
@@ -45,6 +50,28 @@ function saveServers() {
 }
 
 let SERVERS = loadServers();
+
+// Generate self-signed SSL certificate if not present
+function ensureSSLCertificate() {
+  if (existsSync(SSL_KEY_PATH) && existsSync(SSL_CERT_PATH)) {
+    console.log('[SSL] Using existing certificate');
+    return;
+  }
+
+  console.log('[SSL] Generating self-signed certificate...');
+  const attrs = [{ name: 'commonName', value: 'localhost' }];
+  const pems = selfsigned.generate(attrs, {
+    days: 999,
+    keySize: 4096,
+    algorithm: 'sha256'
+  });
+
+  writeFileSync(SSL_KEY_PATH, pems.private);
+  writeFileSync(SSL_CERT_PATH, pems.cert);
+  console.log('[SSL] Certificate generated successfully');
+  console.log(`[SSL] Key: ${SSL_KEY_PATH}`);
+  console.log(`[SSL] Cert: ${SSL_CERT_PATH}`);
+}
 
 // Initialize SQLite database
 let db;
@@ -119,7 +146,7 @@ function parseBytes(str) {
   if (!str || str === 'N/A') return 0;
   const match = str.match(/^([\d.]+)\s*([KMGTPE]?B?)$/i);
   if (!match) return 0;
-  const units = { B: 1, KB: 1024, MB: 1024**2, GB: 1024**3, TB: 1024**4 };
+  const units = { B: 1, KB: 1024, MB: 1024 ** 2, GB: 1024 ** 3, TB: 1024 ** 4 };
   return Math.round(parseFloat(match[1]) * (units[(match[2] || 'B').toUpperCase()] || 1));
 }
 
@@ -461,7 +488,7 @@ async function fetchAllClientStats() {
   // Clean up old data (keep last 2 hours for per-IP tracking)
   const cutoff = timestamp - (2 * 3600000);
   db.run(`DELETE FROM client_stats WHERE timestamp < ?`, [cutoff]);
-  
+
   saveDb();
   if (totalClients > 0) {
     console.log(`[CLIENTS] Tracked ${totalClients} IPs, IN: ${formatBytes(totalIn)}, OUT: ${formatBytes(totalOut)} from ${allResults.filter(r => r.results.length > 0).length}/${SERVERS.length} servers`);
@@ -522,12 +549,12 @@ function getStatsCommand(mode, serverName) {
   if (mode === 'docker') {
     const container = getContainerName(serverName);
     return `docker logs ${container} --tail 50 2>&1 | grep -E "STATS|Connected|started" | tail -20; ` +
-           `docker inspect ${container} --format "{{.State.Status}}" 2>/dev/null || echo "stopped"`;
+      `docker inspect ${container} --format "{{.State.Status}}" 2>/dev/null || echo "stopped"`;
   }
   // Native (systemd) - use 50 lines for better stats capture
   return 'sudo -n systemctl status conduit 2>/dev/null; ' +
-         'sudo -n journalctl -u conduit -n 50 --no-pager 2>/dev/null; ' +
-         'sudo -n grep ExecStart /etc/systemd/system/conduit.service 2>/dev/null';
+    'sudo -n journalctl -u conduit -n 50 --no-pager 2>/dev/null; ' +
+    'sudo -n grep ExecStart /etc/systemd/system/conduit.service 2>/dev/null';
 }
 
 // Get service control command based on mode
@@ -549,14 +576,14 @@ async function fetchServerStats(server) {
     const stats = parseConduitStatus(output, server.name);
     stats.host = server.host;
     stats.mode = mode; // Track deployment mode
-    
+
     // Get or create cache for this server
     const cached = lastKnownStats.get(server.name) || {};
-    
+
     // Cache each field independently - only update if we got a good value
     // For clients/connecting: cache if > 0, OR if uptime is valid (means STATS line was parsed)
     const hasValidStats = stats.uptime !== 'N/A';
-    
+
     if (hasValidStats) {
       // STATS line was found - cache all values from it
       cached.clients = stats.clients;
@@ -572,25 +599,25 @@ async function fetchServerStats(server) {
       if (cached.upload !== undefined) stats.upload = cached.upload;
       if (cached.download !== undefined) stats.download = cached.download;
     }
-    
+
     lastKnownStats.set(server.name, cached);
     return stats;
   } catch (err) {
     // On error, try to return cached data with error status
     const cached = lastKnownStats.get(server.name) || {};
-    return { 
-      name: server.name, 
-      host: server.host, 
-      status: 'error', 
-      clients: cached.clients || 0, 
-      connecting: cached.connecting || 0, 
-      upload: cached.upload || '0 B', 
-      download: cached.download || '0 B', 
-      uptime: cached.uptime || 'N/A', 
-      maxClients: null, 
+    return {
+      name: server.name,
+      host: server.host,
+      status: 'error',
+      clients: cached.clients || 0,
+      connecting: cached.connecting || 0,
+      upload: cached.upload || '0 B',
+      download: cached.download || '0 B',
+      uptime: cached.uptime || 'N/A',
+      maxClients: null,
       bandwidth: null,
       mode: 'unknown',
-      error: err.message 
+      error: err.message
     };
   }
 }
@@ -634,7 +661,12 @@ async function fetchAllStats() {
 // Express setup
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(session({ secret: process.env.SESSION_SECRET || 'conduit-dashboard-secret', resave: false, saveUninitialized: false, cookie: { maxAge: 86400000 } }));
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'conduit-dashboard-secret',
+  resave: false,
+  saveUninitialized: false,
+  cookie: { maxAge: 86400000 }
+}));
 
 const requireAuth = (req, res, next) => {
   if (req.session.authenticated) return next();
@@ -740,9 +772,9 @@ app.get('/api/geo', requireAuth, (req, res) => {
     const rows = [];
     while (stmt.step()) {
       const row = stmt.getAsObject();
-      rows.push({ 
-        country_code: row.country_code, 
-        country_name: row.country_name, 
+      rows.push({
+        country_code: row.country_code,
+        country_name: row.country_name,
         count: row.total_count,
         bytes: row.total_bytes || 0
       });
@@ -757,7 +789,7 @@ app.get('/api/clients', requireAuth, (req, res) => {
   try {
     const minutes = parseInt(req.query.minutes) || 30;
     const since = Date.now() - (minutes * 60000);
-    
+
     // Get recent client data with aggregation and speed calculation
     // Group by IP, sum bytes, calculate speed based on time span
     const stmt = db.prepare(`
@@ -962,7 +994,10 @@ HOSTNAME=\$(hostname | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | cut
 [ -z "\$HOSTNAME" ] && HOSTNAME="server"
 IP=\$(curl -4 -s --connect-timeout 5 ifconfig.me 2>/dev/null || curl -4 -s --connect-timeout 5 icanhazip.com 2>/dev/null || hostname -I | awk '{print \$1}')
 
-RESULT=\$(curl -sX POST "http://${dashboardHost}:${dashboardPort}/api/register" \\
+# Detect dashboard protocol
+DASHBOARD_PROTOCOL="${ENABLE_HTTPS ? 'https' : 'http'}"
+
+RESULT=\$(curl -skX POST "\${DASHBOARD_PROTOCOL}://${dashboardHost}:${dashboardPort}/api/register" \\
   -H "Content-Type: application/json" \\
   -H "X-Join-Token: ${JOIN_TOKEN}" \\
   -d "{\\"name\\":\\"\$HOSTNAME\\",\\"host\\":\\"\$IP\\",\\"user\\":\\"$MON_USER\\",\\"sshPort\\":\$SSH_PORT}" 2>/dev/null)
@@ -976,7 +1011,7 @@ if echo "\$RESULT" | grep -q '"success":true'; then
   echo "  SSH:  \$SSH_PORT"
   echo "  User: $MON_USER"
   echo "  Mode: \$DEPLOY_MODE"
-  echo "  View: http://${dashboardHost}:${dashboardPort}"
+  echo "  View: \${DASHBOARD_PROTOCOL}://${dashboardHost}:${dashboardPort}"
   echo "════════════════════════════════════════════════"
   echo ""
 else
@@ -1027,11 +1062,13 @@ app.post('/api/register', (req, res) => {
 app.get('/api/status', requireAuth, (req, res) => {
   const isFirstRun = SERVERS.length === 0;
   const dashboardHost = req.headers.host?.split(':')[0] || req.hostname;
+  const protocol = ENABLE_HTTPS ? 'https' : 'http';
+  const curlFlags = ENABLE_HTTPS ? '-skL' : '-sL'; // Add -k (insecure) for self-signed certs
 
   res.json({
     firstRun: isFirstRun,
     serverCount: SERVERS.length,
-    joinCommand: JOIN_TOKEN ? `curl -sL "http://${dashboardHost}:${PORT}/join/${JOIN_TOKEN}" | bash` : null,
+    joinCommand: JOIN_TOKEN ? `curl ${curlFlags} "${protocol}://${dashboardHost}:${PORT}/join/${JOIN_TOKEN}" | bash` : null,
     hasJoinToken: !!JOIN_TOKEN
   });
 });
@@ -1111,7 +1148,7 @@ app.put('/api/servers/:name/config', requireAuth, async (req, res) => {
   if (!server) return res.status(404).json({ error: 'Server not found' });
 
   const { maxClients, bandwidth } = req.body;
-  
+
   // Validate inputs
   if (maxClients !== undefined && maxClients !== null && maxClients !== '') {
     const m = parseInt(maxClients, 10);
@@ -1130,7 +1167,7 @@ app.put('/api/servers/:name/config', requireAuth, async (req, res) => {
     // Read current service file
     const readCmd = 'cat /etc/systemd/system/conduit.service 2>/dev/null';
     const serviceFile = await sshExec(server, readCmd);
-    
+
     if (!serviceFile || !serviceFile.includes('ExecStart')) {
       return res.status(500).json({ error: 'Could not read service file' });
     }
@@ -1143,7 +1180,7 @@ app.put('/api/servers/:name/config', requireAuth, async (req, res) => {
     }
 
     let execLine = execMatch[1];
-    
+
     // Update -m flag
     if (maxClients !== undefined && maxClients !== null && maxClients !== '') {
       if (execLine.match(/-m\s+\d+/)) {
@@ -1176,12 +1213,12 @@ app.put('/api/servers/:name/config', requireAuth, async (req, res) => {
       sudo systemctl daemon-reload && \
       sudo systemctl restart conduit
     `;
-    
+
     await sshExec(server, updateCmd);
-    
+
     // Clear cache to refresh stats
     statsCache = { data: null, timestamp: 0 };
-    
+
     console.log(`[CONFIG] Updated ${server.name}: maxClients=${maxClients}, bandwidth=${bandwidth}`);
     res.json({ success: true, message: 'Configuration updated and service restarted' });
   } catch (err) {
@@ -1231,7 +1268,7 @@ app.get('/api/version', requireAuth, async (req, res) => {
           cachedLatestVersion = extractVersion(data.tag_name);
           versionCacheTime = Date.now();
         }
-      } catch {}
+      } catch { }
     }
 
     // Get version from each server
@@ -1258,7 +1295,7 @@ app.get('/api/version', requireAuth, async (req, res) => {
           cachedDashboardVersion = dashboardLatest;
           dashboardVersionCacheTime = Date.now();
         }
-      } catch {}
+      } catch { }
     }
     const dashboardLocal = getLocalDashboardVersion();
     const dashboardNeedsUpdate = dashboardLatest && dashboardLocal !== 'unknown' && dashboardLocal !== dashboardLatest;
@@ -1418,7 +1455,7 @@ async function checkBandwidthLimits() {
         // Only upload counts toward metered bandwidth (download is unmetered)
         const upload = row.max_up || 0;
         if (upload >= server.bandwidthLimit) {
-          console.log(`[AUTO-STOP] ${server.name} exceeded limit (${(upload / 1024**4).toFixed(2)} TB / ${(server.bandwidthLimit / 1024**4).toFixed(2)} TB)`);
+          console.log(`[AUTO-STOP] ${server.name} exceeded limit (${(upload / 1024 ** 4).toFixed(2)} TB / ${(server.bandwidthLimit / 1024 ** 4).toFixed(2)} TB)`);
           try {
             const mode = await detectConduitMode(server);
             await sshExec(server, getControlCommand('stop', mode, server.name));
@@ -1448,8 +1485,25 @@ setInterval(async () => {
 
 // Start
 initDb().then(() => {
-  app.listen(PORT, () => {
-    console.log(`Dashboard running on http://localhost:${PORT}`);
+  let server;
+
+  if (ENABLE_HTTPS) {
+    // Ensure SSL certificate exists (generate if needed)
+    ensureSSLCertificate();
+
+    // Create HTTPS server
+    server = https.createServer({
+      key: readFileSync(SSL_KEY_PATH),
+      cert: readFileSync(SSL_CERT_PATH)
+    }, app);
+  } else {
+    // Use plain HTTP server (previous behavior)
+    server = app;
+  }
+
+  server.listen(PORT, () => {
+    const protocol = ENABLE_HTTPS ? 'https' : 'http';
+    console.log(`Dashboard running on ${protocol}://localhost:${PORT}`);
     if (SERVERS.length === 0) {
       console.log('No servers configured - setup wizard will guide you');
     } else {

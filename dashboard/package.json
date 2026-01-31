@@ -10,6 +10,7 @@
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "express-session": "^1.19.0",
+    "selfsigned": "^2.4.1",
     "sql.js": "^1.13.0",
     "ssh2": "^1.17.0"
   }
